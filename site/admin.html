@@ -303,6 +303,7 @@
         <a data-page="participants"><i data-lucide="users"></i> المشاركون</a>
         <a data-page="teams"><i data-lucide="users-round"></i> الفرق</a>
         <a data-page="projects"><i data-lucide="lightbulb"></i> المشاريع</a>
+        <a data-page="importTeams"><i data-lucide="file-spreadsheet"></i> استيراد الفرق</a>
       </div>
 
       <div class="nav-group-label" data-group="program-group" onclick="toggleNavGroup(this)"><span>البرنامج</span><i data-lucide="chevron-down"></i></div>
@@ -724,6 +725,7 @@ function navigateTo(page){
     generalSettings: renderGeneralSettings,
     teams: renderTeams,
     projects: renderProjects,
+    importTeams: renderImportTeams,
     prep: renderPrep,
     mentorship: renderMentorshipAdmin,
     announcements: renderAnnouncements,
@@ -738,6 +740,228 @@ function navigateTo(page){
     activity: renderActivityLog,
   };
   (renderers[page] || renderOverview)();
+}
+
+/* ============================================================
+   استيراد الفرق من Excel + رسائل التفعيل
+   (منقول من منصة ابتكار إنفاذ ومكيَّف للسيرة)
+   كل صف في الملف = فريق كامل. المعاينة تسبق التنفيذ دائمًا.
+   ============================================================ */
+const IMP_MEMBER_COLS = ["الاسم","البريد","الجوال","الدور بالمشروع","الفئة","المدينة","الجنس","الجهة"];
+const IMP_TEAM_COLS = ["رقم التسجيل","اسم الفريق","المسار","عنوان المشروع","وصف المشروع"];
+const IMP_MAX_EXTRA = 4;   // القائد + 4 أعضاء = 5 (الحد الأعلى للفريق)
+let importParsed = null;
+
+function impBox(type, html){
+  const s = type === "error" ? "background:#fdeceb;color:var(--danger)" : type === "success" ? "background:#e6f7f3;color:var(--teal)" : "background:var(--border-light);color:var(--ink)";
+  return `<div style="${s};padding:11px 14px;border-radius:9px;font-size:13px;margin-top:12px">${html}</div>`;
+}
+
+async function renderImportTeams(){
+  const main = document.getElementById("main-content");
+  main.innerHTML = `<div class="page-header">
+      <div><h1>استيراد الفرق</h1>
+      <p>رفع بيانات الفرق والمشاريع والأعضاء من ملف Excel</p></div>
+      <button class="btn btn-outline" style="width:auto" onclick="downloadImportTemplate()">
+        <i data-lucide="download" style="width:14px;height:14px;vertical-align:-2px;display:inline-block"></i> تحميل القالب</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 6px">الخطوة الأولى: اختيار الملف</h3>
+      <p class="hint" style="margin:0 0 14px">
+        استخدم القالب المعتمد (زر «تحميل القالب»). كل صف يمثّل فريقًا كاملًا: القائد وحتى ${IMP_MAX_EXTRA} أعضاء.
+        المسار: «رحلة السيرة النبوية» أو «البصمة الرقمية في السيرة النبوية». البريد والجوال إلزاميان لكل عضو، فالجوال هو ما يفعّل به المشارك حسابه.
+      </p>
+      <input type="file" id="imp-file" accept=".xlsx,.xls" onchange="parseImportFile()">
+      <div id="imp-summary" style="margin-top:16px"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 6px">رسائل التفعيل</h3>
+      <p class="hint" style="margin:0 0 14px">
+        المستورَد لا تصله رسالة تلقائيًا. أرسل له تعليمات التفعيل حين تكون جاهزًا.
+        تصل الرسالة كإشعار في المنصة، وبالبريد إن كانت دالة الإيميلات مفعّلة؛ ويمكنك تصدير القائمة لإرسالها بنفسك.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" style="width:auto" onclick="previewInvites()">معاينة المستلمين</button>
+        <button class="btn btn-outline" style="width:auto" onclick="exportInviteList()">تصدير القائمة Excel</button>
+        <button class="btn btn-primary" style="width:auto" onclick="sendInvites()">إرسال رسائل التفعيل</button>
+      </div>
+      <div id="inv-result" style="margin-top:14px"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px"><div id="imp-preview"><p class="hint" style="margin:0">ستظهر معاينة الفرق هنا بعد اختيار الملف.</p></div></div>`;
+  if(window.lucide) lucide.createIcons();
+}
+
+function downloadImportTemplate(){
+  const groups = ["بيانات الفريق", "", "", "", "", "القائد", ...Array(7).fill("")];
+  for(let m = 2; m <= IMP_MAX_EXTRA + 1; m++) groups.push(`العضو ${m}`, ...Array(7).fill(""));
+  const head = [...IMP_TEAM_COLS, ...IMP_MEMBER_COLS];
+  for(let m = 0; m < IMP_MAX_EXTRA; m++) head.push(...IMP_MEMBER_COLS);
+  const sample = ["S-001", "فريق النور", "رحلة السيرة النبوية", "رحلة الهجرة التفاعلية", "تطبيق يأخذ المستخدم في محطات الهجرة النبوية",
+    "محمد أحمد", "leader@example.com", "0500000000", "مطوّر", "طالب", "بريدة", "ذكر", "جامعة القصيم",
+    "سارة علي", "member@example.com", "0550000000", "مصممة", "طالب", "عنيزة", "أنثى", "جامعة القصيم"];
+  const ws = XLSX.utils.aoa_to_sheet([groups, head, sample]);
+  const merges = [{s:{r:0,c:0},e:{r:0,c:4}}, {s:{r:0,c:5},e:{r:0,c:12}}];
+  for(let m = 0; m < IMP_MAX_EXTRA; m++){ const c = 13 + m*8; merges.push({s:{r:0,c},e:{r:0,c:c+7}}); }
+  ws["!merges"] = merges;
+  ws["!cols"] = head.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "الفرق");
+  XLSX.writeFile(wb, "قالب_استيراد_فرق_هاكثون_السيرة.xlsx");
+}
+
+// أعمدة العضو الثمانية تتكرر: نقرأها بالإزاحة
+function readMember(row, base, isLeader){
+  const g = i => (row[base + i] ?? "").toString().trim();
+  const name = g(0), email = g(1);
+  if(!name && !email) return null;
+  return { name, email: email.toLowerCase(), phone: g(2), role: g(3), category: g(4),
+           city: g(5), gender: g(6), org: g(7), is_leader: isLeader };
+}
+
+async function parseImportFile(){
+  const file = document.getElementById("imp-file").files[0];
+  const box = document.getElementById("imp-summary");
+  const prev = document.getElementById("imp-preview");
+  if(!file) return;
+  box.innerHTML = '<p class="hint">جارٍ القراءة...</p>';
+  importParsed = null;
+
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+    // صفّا رأس: المجموعات ثم الأعمدة
+    const body = rows.slice(2).filter(r => r.some(c => (c ?? "").toString().trim()));
+    if(!body.length){ box.innerHTML = impBox("error", "الملف لا يحوي بيانات — تأكد أنه مبني على القالب (صفّا عناوين ثم الفرق)"); return; }
+
+    const teams = [], errors = [];
+    body.forEach((r, idx) => {
+      const rowNo = idx + 3;
+      const g = i => (r[i] ?? "").toString().trim();
+      const members = [];
+      const leader = readMember(r, 5, true);
+      if(leader) members.push(leader);
+      for(let m = 0; m < IMP_MAX_EXTRA; m++){
+        const mem = readMember(r, 13 + m * 8, false);
+        if(mem) members.push(mem);
+      }
+      const team = { reg_no: g(0), team_name: g(1), track: g(2), project_title: g(3), project_desc: g(4), members };
+      if(!team.team_name) team.team_name = team.project_title || (team.reg_no ? `فريق ${team.reg_no}` : "");
+
+      if(!team.reg_no) errors.push(`صف ${rowNo}: رقم التسجيل مفقود`);
+      if(!team.team_name) errors.push(`صف ${rowNo}: اسم الفريق مفقود`);
+      if(!team.track) errors.push(`صف ${rowNo}: المسار مفقود`);
+      if(!members.length) errors.push(`صف ${rowNo}: لا أعضاء`);
+      if(members.length && !members[0].email) errors.push(`صف ${rowNo}: بريد القائد مفقود`);
+      const noEmail = members.filter(m => !m.email).length;
+      if(noEmail) errors.push(`صف ${rowNo}: ${noEmail} عضوًا بلا بريد — سيُتجاهل`);
+      const noPhone = members.filter(m => m.email && !m.phone).length;
+      if(noPhone) errors.push(`صف ${rowNo}: ${noPhone} عضوًا بلا جوال — لن يستطيع التفعيل بنفسه`);
+      teams.push(team);
+    });
+
+    importParsed = teams;
+    const totalMembers = teams.reduce((a, t) => a + t.members.length, 0);
+    const emails = new Set(teams.flatMap(t => t.members.map(m => m.email)).filter(Boolean));
+    const dupes = teams.flatMap(t => t.members.map(m => m.email)).filter(Boolean).length - emails.size;
+
+    box.innerHTML = `
+      <div class="grid-stats" style="margin-bottom:0">
+        ${statCard(teams.length, "فريقًا")}
+        ${statCard(totalMembers, "عضوًا")}
+        ${statCard(emails.size, "بريدًا فريدًا")}
+        ${statCard(errors.length, "تنبيهًا", errors.length > 0)}
+      </div>
+      ${dupes > 0 ? impBox("error", `${dupes} بريدًا مكررًا — سيُربط المستخدم بآخر فريق يظهر فيه`) : ""}
+      ${errors.length ? `<div style="max-height:180px;overflow:auto">${impBox("error", errors.map(e => esc(e)).join("<br>"))}</div>` : ""}
+      <button class="btn btn-primary" style="margin-top:14px;width:auto" onclick="runImport()">تنفيذ الاستيراد</button>`;
+
+    prev.innerHTML = `
+      <h3 style="margin:0 0 10px">معاينة</h3>
+      <div style="overflow-x:auto"><table><thead><tr>
+        <th>رقم التسجيل</th><th>الفريق</th><th>المشروع</th><th>المسار</th><th>الأعضاء</th><th>القائد</th>
+      </tr></thead><tbody>
+      ${teams.slice(0, 25).map(t => `<tr>
+        <td>${esc(t.reg_no || "—")}</td><td>${esc(t.team_name || "—")}</td>
+        <td>${esc(t.project_title || "—")}</td><td>${esc(t.track || "—")}</td>
+        <td>${t.members.length}</td><td>${esc(t.members[0]?.name || "—")}</td>
+      </tr>`).join("")}
+      </tbody></table></div>
+      ${teams.length > 25 ? `<p class="hint">و${teams.length - 25} فريقًا آخر</p>` : ""}`;
+  }catch(e){
+    box.innerHTML = impBox("error", "تعذّرت قراءة الملف: " + esc(e.message));
+  }
+}
+
+async function runImport(){
+  if(!importParsed || !importParsed.length) return;
+  if(!confirm(`تنفيذ استيراد ${importParsed.length} فريقًا؟\n\nستُنشأ حسابات الأعضاء الجدد بحالة "بانتظار التفعيل".`)) return;
+  const box = document.getElementById("imp-summary");
+  const results = [], failures = [];
+  for(let i = 0; i < importParsed.length; i++){
+    box.innerHTML = `<p class="hint">جارٍ الاستيراد... ${i + 1} من ${importParsed.length}</p>`;
+    const { data, error } = await sb.rpc("import_team", { p_team: importParsed[i] });
+    if(error || !data?.success) failures.push(`${importParsed[i].reg_no || importParsed[i].team_name}: ${data?.error || error?.message}`);
+    else results.push(data);
+  }
+  const created = results.reduce((a, r) => a + (r.accounts_created || 0), 0);
+  const linked  = results.reduce((a, r) => a + (r.members_linked || 0), 0);
+  box.innerHTML = `
+    <div class="grid-stats" style="margin-bottom:0">
+      ${statCard(results.length, "فريقًا استُورد")}
+      ${statCard(created, "حسابًا جديدًا")}
+      ${statCard(linked, "عضوية")}
+      ${statCard(failures.length, "فشل", failures.length > 0)}
+    </div>
+    ${failures.length
+      ? `<div style="max-height:200px;overflow:auto">${impBox("error", failures.map(f => esc(f)).join("<br>"))}</div>`
+      : impBox("success", "اكتمل الاستيراد. يفعّل كل مشارك حسابه من صفحة التسجيل ← «تفعيل أول مرة» ببريده ورقم جواله.")}`;
+  importParsed = null;
+  logActivity("استيراد فرق", "teams", null, { teams: results.length, accounts: created, failed: failures.length });
+}
+
+async function previewInvites(){
+  const box = document.getElementById("inv-result");
+  box.innerHTML = `<p class="hint">جارٍ الفحص...</p>`;
+  const { data, error } = await sb.rpc("send_activation_invites", { p_dry_run: true });
+  if(error || !data?.success){ box.innerHTML = impBox("error", esc(data?.error || error?.message)); return; }
+  const list = data.recipients || [];
+  if(!list.length){ box.innerHTML = impBox("success", "كل المستوردين فعّلوا حساباتهم — لا رسائل مطلوبة"); return; }
+  box.innerHTML = impBox("", `سيستلم <strong>${list.length}</strong> مشاركًا`) + `
+    <div style="overflow-x:auto;margin-top:10px"><table><thead><tr><th>المشارك</th><th>البريد</th><th>الفريق</th></tr></thead><tbody>
+      ${list.map(r => `<tr><td>${esc(r.name || "—")}</td><td>${esc(r.email || "—")}</td><td>${esc(r.team || "—")}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+async function exportInviteList(){
+  const { data, error } = await sb.rpc("send_activation_invites", { p_dry_run: true });
+  if(error || !data?.success) return showToast(data?.error || error?.message, true);
+  const list = data.recipients || [];
+  if(!list.length) return showToast("لا مستوردين بانتظار التفعيل");
+  const ws = XLSX.utils.json_to_sheet(list.map(r => ({ "الاسم": r.name, "البريد": r.email, "الفريق": r.team })));
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "بانتظار التفعيل");
+  XLSX.writeFile(wb, `بانتظار_التفعيل_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+async function sendInvites(){
+  const box = document.getElementById("inv-result");
+  const { data: prev } = await sb.rpc("send_activation_invites", { p_dry_run: true });
+  const n = prev?.count || 0;
+  if(!n){ box.innerHTML = impBox("success", "لا مستوردين بانتظار التفعيل"); return; }
+  if(!confirm(`إرسال رسالة تفعيل إلى ${n} مشاركًا؟`)) return;
+  box.innerHTML = `<p class="hint">جارٍ الإرسال...</p>`;
+  const { data, error } = await sb.rpc("send_activation_invites");
+  if(error || !data?.success){ box.innerHTML = impBox("error", esc(data?.error || error?.message)); return; }
+  logActivity("إرسال رسائل تفعيل", "profiles", null, { count: data.count });
+  box.innerHTML = impBox("success", `أُرسلت <strong>${data.count}</strong> رسالة تفعيل`);
 }
 
 /* ============================================================

@@ -22,8 +22,9 @@
 
   .top-bar{background:rgba(253,252,250,.95); border-bottom:1px solid var(--border); padding:14px 20px; text-align:center;}
   body.dark .top-bar{background:rgba(21,31,48,.95) !important;}
-  .top-bar img{height:26px; display:inline-block; vertical-align:middle;}
-  .top-bar .divider{display:inline-block; width:1px; height:20px; background:var(--border); margin:0 12px; vertical-align:middle;}
+  .top-bar img{height:44px; display:inline-block; vertical-align:middle;}
+  .top-bar .divider{display:inline-block; width:1px; height:34px; background:var(--border); margin:0 16px; vertical-align:middle;}
+  @media (max-width:600px){ .top-bar img{height:34px;} .top-bar .divider{height:26px;} }
 
   header{
     background:linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 60%, var(--navy-dark) 100%);

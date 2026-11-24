@@ -22,8 +22,9 @@
   body{margin:0; font-family:'IBM Plex Sans Arabic', sans-serif; background:var(--bg); color:var(--ink); transition:background .2s, color .2s;}
   .top-bar{background:rgba(253,252,250,.95); border-bottom:1px solid var(--border); padding:14px 20px; text-align:center;}
   body.dark .top-bar{background:rgba(21,31,48,.95) !important;}
-  .top-bar img{height:26px; display:inline-block; vertical-align:middle;}
-  .top-bar .divider{display:inline-block; width:1px; height:20px; background:var(--border); margin:0 12px; vertical-align:middle;}
+  .top-bar img{height:44px; display:inline-block; vertical-align:middle;}
+  .top-bar .divider{display:inline-block; width:1px; height:34px; background:var(--border); margin:0 16px; vertical-align:middle;}
+  @media (max-width:600px){ .top-bar img{height:34px;} .top-bar .divider{height:26px;} }
 
   .auth-gate{max-width:400px; margin:16px auto 80px; text-align:center; background:var(--card); border-radius:var(--radius); padding:36px 28px; border:1px solid var(--border);}
   .auth-gate h2{margin-bottom:6px; color:var(--navy);}

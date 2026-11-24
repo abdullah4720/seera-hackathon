@@ -5,6 +5,6 @@
    لا تضع هنا أبدًا مفتاح service_role.
    ============================================================ */
 window.SEERA_CONFIG = {
-  SUPABASE_URL: "https://YOUR-PROJECT-REF.supabase.co",
-  SUPABASE_ANON_KEY: "YOUR_SUPABASE_PUBLISHABLE_KEY"
+  SUPABASE_URL: "https://xsfznlqyhxvfqaiecjxn.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_1nidvDtO_hyLO6TIGbodvQ_cVxDQDhl"
 };

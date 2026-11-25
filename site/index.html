@@ -149,15 +149,6 @@
     <h1 style="margin-bottom:8px">هاكثون <em>السيرة النبوية</em></h1>
     <p style="font-size:16px; color:var(--gold); font-weight:600; margin:0 0 20px">اكتشف السيرة بلغة العصر… وصُغ قيمها في مشروع رقمي مبتكر</p>
     <p class="lede">يهدف هاكثون السيرة النبوية إلى تمكين الطلاب والطالبات في منطقة القصيم من إعادة اكتشاف السيرة النبوية بلغة العصر وأدواته، من خلال تحويل القيم والمواقف النبوية إلى مشاريع رقمية مبتكرة تُجسّد المعاني التربوية والإنسانية بأساليب إبداعية تفاعلية.</p>
-    <div class="hero-ctas">
-      <a href="./registration.html" class="btn btn-primary"><i data-lucide="arrow-left" style="width:15px;height:15px"></i> سجّل فريقك الآن</a>
-      <a href="#tracks" class="btn btn-ghost">استعرض المسارات</a>
-    </div>
-    <div class="countdown-row" id="countdown-box" style="display:none">
-      <div class="cd-item"><div class="cd-num" id="cd-days">--</div><div class="cd-label">يوم</div></div>
-      <div class="cd-item"><div class="cd-num" id="cd-hours">--</div><div class="cd-label">ساعة</div></div>
-      <div class="cd-item"><div class="cd-num" id="cd-mins">--</div><div class="cd-label">دقيقة</div></div>
-    </div>
   </div>
   <div aria-hidden="true" style="height:70px"></div>
 </section>
@@ -283,22 +274,6 @@ const TRACK_GLOWS = ["var(--gold)","var(--teal)","var(--violet)"];
   initReveal(grid);
 })();
 
-(async function initCountdown(){
-  const { data } = await sb.from("platform_settings").select("value").eq("key","hackathon_start_date").maybeSingle();
-  if(!data?.value) return;
-  const target = new Date(data.value).getTime();
-  const box = document.getElementById("countdown-box");
-  function tick(){
-    const diff = target - Date.now();
-    if(diff <= 0){ box.innerHTML = '<div class="cd-item"><div class="cd-num">🎉</div><div class="cd-label">بدأ الآن</div></div>'; return; }
-    document.getElementById("cd-days").textContent = Math.floor(diff / 86400000);
-    document.getElementById("cd-hours").textContent = Math.floor((diff % 86400000) / 3600000);
-    document.getElementById("cd-mins").textContent = Math.floor((diff % 3600000) / 60000);
-  }
-  box.style.display = "inline-flex";
-  tick();
-  setInterval(tick, 60000);
-})();
 
 }catch(err){ console.error("تعذّر تحميل بيانات Supabase:", err); }
 }

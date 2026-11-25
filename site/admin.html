@@ -3573,7 +3573,7 @@ async function renderCertificates(){
       ${types.map(c => `<tr>
         <td><div style="width:34px;height:34px;border-radius:9px;background:color-mix(in srgb, ${c.badge_color||'#D9A400'} 16%, white);display:flex;align-items:center;justify-content:center"><i data-lucide="${c.badge_icon||'award'}" style="width:17px;height:17px;color:${c.badge_color||'#D9A400'}"></i></div></td>
         <td><strong>${esc(c.name_ar)}</strong></td>
-        <td>${{participant:"المشاركون",mentor:"المرشدون",judge:"المحكّمون"}[c.role_key] || "عام للجميع"}</td>
+        <td>${{participant:"المشاركون",mentor:"المرشدون",judge:"المحكّمون",admin:"الإدارة فقط"}[c.role_key] || "عام للجميع"}</td>
         <td>${c.min_attendance_pct}%</td>
         <td>${c.requires_survey ? '<span class="badge badge-gold">نعم</span>' : '<span class="badge badge-gray">لا</span>'}</td>
         <td>${c.certificates?.[0]?.count ?? 0}</td>
@@ -3703,6 +3703,7 @@ function openCertTypeModal(c=null){
         <option value="participant" ${c.role_key==="participant"?"selected":""}>المشاركون</option>
         <option value="mentor" ${c.role_key==="mentor"?"selected":""}>المرشدون</option>
         <option value="judge" ${c.role_key==="judge"?"selected":""}>المحكّمون</option>
+        <option value="admin" ${c.role_key==="admin"?"selected":""}>الإدارة فقط (لا يُصدرها المستخدم بنفسه)</option>
         <option value="" ${!c.role_key?"selected":""}>عام لكل الأدوار</option>
       </select>
       <p class="hint" style="margin-top:4px">تحدد لمن تظهر هذه الشهادة بصفحته الشخصية</p>

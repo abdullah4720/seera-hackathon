@@ -933,7 +933,7 @@ function renderNotifPanel(){
   panel.innerHTML = notifItems.map(n => `
     <div onclick="markNotifRead('${n.id}')" style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;${n.is_read?'':'background:#f2fbf9'}">
       <div style="font-size:13px;font-weight:600">${esc(n.title)}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(n.body||"")}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;white-space:pre-line;overflow-wrap:anywhere">${esc(n.body||"")}</div>
       <div style="font-size:10.5px;color:var(--muted);margin-top:4px">${fmtDate(n.created_at)}</div>
     </div>
   `).join("");

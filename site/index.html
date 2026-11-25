@@ -36,6 +36,10 @@
   .glow-icon{position:relative; width:54px; height:54px; border-radius:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:var(--border-light);}
   .glow-icon::before{content:""; position:absolute; inset:-10px; border-radius:50%; background:radial-gradient(circle, var(--glow, var(--gold)) 0%, transparent 70%); filter:blur(11px); opacity:.4; z-index:0; animation:pulse-glow 4.5s ease-in-out infinite;}
   .glow-icon i{position:relative; z-index:1; width:22px; height:22px; color:var(--glow, var(--gold));}
+  /* أيقونات بطاقات المسارات: مربع داكن بأيقونة ذهبية واضحة */
+  .track-card .glow-icon{background:#28323C; box-shadow:0 6px 16px rgba(40,50,60,.22);}
+  .track-card .glow-icon::before{opacity:.28;}
+  .track-card .glow-icon i{width:26px; height:26px; color:#F7C30D; stroke-width:2.2;}
   @keyframes pulse-glow{0%,100%{opacity:.3;} 50%{opacity:.55;}}
 
   .stat-card{background:var(--border-light); border-radius:12px; padding:18px 20px; text-align:center;}
@@ -87,7 +91,7 @@
   .track-card.visible{opacity:1; transform:translateY(0);}
   .track-card:hover{transform:translateY(-4px); box-shadow:0 12px 28px rgba(0,0,0,.18);}
   .track-card h3{font-size:16px; margin:16px 0 8px; color:var(--ink-on-light);}
-  .track-card p{font-size:13px; color:var(--muted); line-height:1.7;}
+  .track-card p{font-size:13.5px; color:#5A6470; line-height:1.75;}
   .track-details-toggle{
     background:none; border:none; color:var(--gold); font-family:inherit; font-size:12.5px; font-weight:700;
     cursor:pointer; padding:10px 0 0; display:block;
@@ -238,7 +242,7 @@ function esc(str){
   if(str === null || str === undefined) return "";
   return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
-const TRACK_ICONS = ["gavel","trending-up","file-check-2","shield-check","target","zap"];
+const TRACK_ICONS = ["route","fingerprint","book-open","sparkles","target","zap"];   // رحلة السيرة، البصمة الرقمية
 const TRACK_GLOWS = ["var(--gold)","var(--teal)","var(--violet)"];
 
 (async function loadTracks(){

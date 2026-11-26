@@ -248,6 +248,10 @@
     aside{position:relative; height:auto;}
     main{padding:20px;}
   }
+  .who-badge{width:38px; height:38px; border-radius:10px; background:#F7C30D; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,.25);}
+  .who-badge svg{width:20px; height:20px; color:#28323C; stroke-width:2.2;}
+  .who-badge-sm{width:34px;height:34px;}
+  .who-badge-sm svg{width:18px;height:18px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="config.js"></script>
@@ -337,7 +341,7 @@
       </div>
     </nav>
     <div class="logout-box">
-      <div class="user-email" id="current-user-email"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span class="who-badge who-badge-sm" aria-hidden="true"><i data-lucide="book-open-text"></i></span><div class="user-email" id="current-user-email" style="margin:0;min-width:0;overflow-wrap:anywhere"></div></div>
       <button class="btn btn-outline btn-sm" style="width:100%" onclick="handleLogout()">تسجيل الخروج</button>
     </div>
   </aside>

@@ -316,6 +316,7 @@
         <a data-page="mentorship"><i data-lucide="compass"></i> إدارة الإرشاد</a>
         <a data-page="judging"><i data-lucide="scale"></i> التحكيم</a>
         <a href="./scan.html" target="_blank" style="opacity:.9"><i data-lucide="qr-code"></i> تسجيل الحضور (مسح QR)</a>
+        <a data-page="deliverables"><i data-lucide="upload"></i> التسليمات المطلوبة</a>
         <a data-page="certificates"><i data-lucide="award"></i> الشهادات</a>
         <a data-page="surveys"><i data-lucide="clipboard-list"></i> الاستبيانات والرضا</a>
       </div>
@@ -726,6 +727,7 @@ function navigateTo(page){
     submissionFields: renderSubmissionFields,
     journeyMilestones: renderJourneyMilestones,
     resourceFiles: renderResourceFiles,
+    deliverables: renderDeliverables,
     generalSettings: renderGeneralSettings,
     teams: renderTeams,
     projects: renderProjects,
@@ -1329,21 +1331,15 @@ async function renderGeneralSettings(){
 
     <div class="card">
       <h3 style="margin:0 0 4px">📅 الجدول الزمني للبرنامج</h3>
-      <p class="hint" style="margin-bottom:16px">هذه التواريخ تتحكم بالعدّاد التنازلي وموعد إغلاق التقديم بصفحة المشارك</p>
-      <div class="form-row-2">
-        <div class="field"><label>بداية الهاكثون</label><input type="datetime-local" id="gs-date-hackathon-start"></div>
-        <div class="field"><label>نهاية الهاكثون</label><input type="datetime-local" id="gs-date-hackathon-end"></div>
+      <p class="hint" style="margin-bottom:16px">حدّد عدد أيام كل مرحلة وساعات كل يوم. خارج هذه الساعات يُمنع إنشاء مواعيد الإرشاد وحفظ درجات التحكيم.</p>
+      <div id="gs-days-hackathon" style="margin-bottom:18px">${skeletonRows(2)}</div>
+      <div id="gs-days-mentorship" style="margin-bottom:18px"></div>
+      <div id="gs-days-judging" style="margin-bottom:18px"></div>
+      <div class="field" style="border-top:1px solid var(--border);padding-top:14px">
+        <label>الموعد النهائي لتقديم المشاريع</label>
+        <input type="datetime-local" id="gs-date-submission-deadline">
       </div>
-      <div class="form-row-2">
-        <div class="field"><label>بداية الإرشاد</label><input type="datetime-local" id="gs-date-mentorship-start"></div>
-        <div class="field"><label>نهاية الإرشاد</label><input type="datetime-local" id="gs-date-mentorship-end"></div>
-      </div>
-      <div class="form-row-2">
-        <div class="field"><label>بداية التحكيم</label><input type="datetime-local" id="gs-date-judging-start"></div>
-        <div class="field"><label>نهاية التحكيم</label><input type="datetime-local" id="gs-date-judging-end"></div>
-      </div>
-      <div class="field"><label>الموعد النهائي لتقديم المشاريع</label><input type="datetime-local" id="gs-date-submission-deadline"></div>
-      <button class="btn btn-primary" onclick="saveGeneralSchedule()">حفظ الجدول الزمني</button>
+      <button class="btn btn-primary" onclick="saveSubmissionDeadline()">حفظ الموعد النهائي</button>
       <span id="gs-schedule-alert" style="font-size:12.5px;color:var(--teal);display:none;margin-right:10px">تم الحفظ ✓</span>
     </div>
 
@@ -1359,34 +1355,175 @@ async function renderGeneralSettings(){
       <div id="gs-email-template-box">${skeletonRows(3)}</div>
     </div>`;
 
-  // تعبئة الجدول الزمني
-  const scheduleKeys = ["hackathon_start_date","hackathon_end_date","mentorship_start_date","mentorship_end_date","judging_start_date","judging_end_date","submission_deadline"];
-  const { data: scheduleRows } = await sb.from("platform_settings").select("key,value").in("key", scheduleKeys);
-  (scheduleRows||[]).forEach(row => {
-    if(row.value){
-      const el = document.getElementById(`gs-date-${row.key.replace(/_date$/,'').replace(/_/g,'-')}`);
-      if(el) el.value = row.value.substring(0,16);
-    }
-  });
+  // الموعد النهائي للتقديم يبقى مفتاحًا مفردًا (ليس مرحلة بأيام)
+  const { data: deadlineRow } = await sb.from("platform_settings").select("value").eq("key","submission_deadline").maybeSingle();
+  if(deadlineRow?.value){
+    const el = document.getElementById("gs-date-submission-deadline");
+    if(el) el.value = deadlineRow.value.substring(0,16);
+  }
 
+  await renderProgramDays();
   await renderGsMentorshipMode();
   await renderGsEmailTemplate();
 }
-async function saveGeneralSchedule(){
-  const map = {
-    hackathon_start_date: "gs-date-hackathon-start", hackathon_end_date: "gs-date-hackathon-end",
-    mentorship_start_date: "gs-date-mentorship-start", mentorship_end_date: "gs-date-mentorship-end",
-    judging_start_date: "gs-date-judging-start", judging_end_date: "gs-date-judging-end",
-    submission_deadline: "gs-date-submission-deadline",
-  };
-  const rows = Object.entries(map).map(([key, inputId]) => {
-    const val = document.getElementById(inputId).value;
-    return { key, value: val ? new Date(val).toISOString() : null };
+
+/* ---------------- أيام البرنامج ---------------- */
+const PHASE_META = {
+  hackathon:  { label: "الهاكثون", icon: "rocket" },
+  mentorship: { label: "الإرشاد",   icon: "compass" },
+  judging:    { label: "التحكيم",   icon: "gavel" },
+};
+let programDays = { hackathon: [], mentorship: [], judging: [] };
+
+async function renderProgramDays(){
+  const { data, error } = await sb.from("program_days").select("*").order("phase").order("day_number");
+  if(error){
+    const box = document.getElementById("gs-days-hackathon");
+    if(box) box.innerHTML = `<div class="alert error" style="display:block">تعذّر تحميل أيام البرنامج — تأكد من تطبيق ملف 70_program_days.sql</div>`;
+    return;
+  }
+  programDays = { hackathon: [], mentorship: [], judging: [] };
+  (data||[]).forEach(d => { if(programDays[d.phase]) programDays[d.phase].push(d); });
+  Object.keys(PHASE_META).forEach(drawPhaseDays);
+}
+
+// تحويل ISO إلى القيمة التي يقبلها datetime-local بالتوقيت المحلي
+function toLocalInput(iso){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function drawPhaseDays(phase){
+  const box = document.getElementById(`gs-days-${phase}`);
+  if(!box) return;
+  const meta = PHASE_META[phase];
+  const days = programDays[phase] || [];
+
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <h4 style="margin:0;font-size:13.5px">
+        <i data-lucide="${meta.icon}" style="width:15px;height:15px;vertical-align:-3px;display:inline-block"></i>
+        ${meta.label}
+        <span style="color:var(--muted);font-weight:400">· ${days.length ? `${days.length} ${days.length === 1 ? "يوم" : "أيام"}` : "بلا أيام محددة"}</span>
+      </h4>
+      <button class="btn btn-outline btn-sm" onclick="addProgramDay('${phase}')">+ إضافة يوم</button>
+    </div>
+    ${days.length ? days.map((d, i) => `
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="min-width:56px;font-size:12.5px;font-weight:600;padding-bottom:9px">اليوم ${d.day_number}</span>
+        <div class="field" style="margin:0;flex:1;min-width:190px">
+          <label style="font-size:11.5px">البداية</label>
+          <input type="datetime-local" id="pd-start-${d.id}" value="${toLocalInput(d.starts_at)}">
+        </div>
+        <div class="field" style="margin:0;flex:1;min-width:190px">
+          <label style="font-size:11.5px">النهاية</label>
+          <input type="datetime-local" id="pd-end-${d.id}" value="${toLocalInput(d.ends_at)}">
+        </div>
+        ${i === 0 && days.length > 1 ? `<button class="btn btn-outline btn-sm" title="طبّق ساعات هذا اليوم على باقي الأيام" onclick="copyHoursToAllDays('${phase}')">نسخ الساعات</button>` : ""}
+        <button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteProgramDay('${d.id}','${phase}',${d.day_number})">حذف</button>
+      </div>
+    `).join("") : `<p class="hint" style="margin:0">لم تُحدَّد أيام — تُطبَّق نافذة واحدة مفتوحة كما كان سابقًا</p>`}
+    ${days.length ? `<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="savePhaseDays('${phase}')">حفظ أيام ${meta.label}</button>` : ""}
+  `;
+  if(window.lucide) lucide.createIcons();
+}
+
+async function addProgramDay(phase){
+  const days = programDays[phase] || [];
+  const nextNum = days.length ? Math.max(...days.map(d => d.day_number)) + 1 : 1;
+
+  // اليوم الجديد يرث ساعات آخر يوم، مزاحًا 24 ساعة — أسرع من إدخال يدوي
+  let start, end;
+  if(days.length){
+    const last = days[days.length - 1];
+    start = new Date(new Date(last.starts_at).getTime() + 86400000);
+    end   = new Date(new Date(last.ends_at).getTime()   + 86400000);
+  } else {
+    start = new Date(); start.setHours(9,0,0,0);
+    end   = new Date(); end.setHours(17,0,0,0);
+  }
+
+  const { error } = await sb.from("program_days").insert({
+    phase, day_number: nextNum,
+    starts_at: start.toISOString(), ends_at: end.toISOString()
   });
-  const { error } = await sb.from("platform_settings").upsert(rows);
-  const alertEl = document.getElementById("gs-schedule-alert");
+  if(error) return showToast("خطأ: " + error.message, true);
+  logActivity("إضافة يوم للبرنامج", "program_days", null, { phase, day: nextNum });
+  await renderProgramDays();
+}
+
+function copyHoursToAllDays(phase){
+  const days = programDays[phase] || [];
+  if(days.length < 2) return;
+  const first = days[0];
+  const s = document.getElementById(`pd-start-${first.id}`).value;
+  const e = document.getElementById(`pd-end-${first.id}`).value;
+  if(!s || !e){ showToast("أدخل ساعات اليوم الأول أولًا", true); return; }
+
+  const sh = s.substring(11), eh = e.substring(11);   // HH:MM فقط
+  days.slice(1).forEach(d => {
+    const si = document.getElementById(`pd-start-${d.id}`);
+    const ei = document.getElementById(`pd-end-${d.id}`);
+    if(si?.value) si.value = si.value.substring(0,11) + sh;
+    if(ei?.value) ei.value = ei.value.substring(0,11) + eh;
+  });
+  showToast("طُبّقت الساعات — اضغط حفظ للتثبيت");
+}
+
+async function savePhaseDays(phase){
+  const days = programDays[phase] || [];
+  const rows = [];
+
+  for(const d of days){
+    const s = document.getElementById(`pd-start-${d.id}`).value;
+    const e = document.getElementById(`pd-end-${d.id}`).value;
+    if(!s || !e){ showToast(`اليوم ${d.day_number}: أكمل البداية والنهاية`, true); return; }
+    const sd = new Date(s), ed = new Date(e);
+    if(ed <= sd){ showToast(`اليوم ${d.day_number}: النهاية يجب أن تكون بعد البداية`, true); return; }
+    rows.push({ id: d.id, phase, day_number: d.day_number, starts_at: sd.toISOString(), ends_at: ed.toISOString() });
+  }
+
+  // تداخل الأيام يعني ساعات مزدوجة — نمنعه قبل الحفظ
+  const sorted = [...rows].sort((a,b) => new Date(a.starts_at) - new Date(b.starts_at));
+  for(let i = 1; i < sorted.length; i++){
+    if(new Date(sorted[i].starts_at) < new Date(sorted[i-1].ends_at)){
+      showToast("يوجد تداخل بين يومين — راجع الأوقات", true);
+      return;
+    }
+  }
+
+  const { error } = await sb.from("program_days").upsert(rows);
+  if(error) return showToast("خطأ: " + error.message, true);
+  logActivity("تحديث أيام البرنامج", "program_days", null, { phase, days: rows.length });
+  showToast(`تم حفظ أيام ${PHASE_META[phase].label}`);
+  await renderProgramDays();
+}
+
+async function deleteProgramDay(id, phase, dayNumber){
+  if(!confirm(`حذف اليوم ${dayNumber} من ${PHASE_META[phase].label}؟`)) return;
+  const { error } = await sb.from("program_days").delete().eq("id", id);
+  if(error) return showToast("خطأ: " + error.message, true);
+
+  // إعادة ترقيم الأيام المتبقية حتى تبقى 1..n بلا فجوات
+  const remaining = (programDays[phase] || []).filter(d => d.id !== id);
+  const renum = remaining.map((d, i) => ({ id: d.id, phase, day_number: i + 1, starts_at: d.starts_at, ends_at: d.ends_at }));
+  if(renum.length) await sb.from("program_days").upsert(renum);
+
+  logActivity("حذف يوم من البرنامج", "program_days", null, { phase, day: dayNumber });
+  showToast("تم الحذف");
+  await renderProgramDays();
+}
+
+async function saveSubmissionDeadline(){
+  const val = document.getElementById("gs-date-submission-deadline").value;
+  const { error } = await sb.from("platform_settings").upsert({
+    key: "submission_deadline", value: val ? new Date(val).toISOString() : null
+  });
   if(error){ showToast("خطأ: " + error.message, true); return; }
-  logActivity("تحديث الجدول الزمني للبرنامج", "platform_settings");
+  logActivity("تحديث الموعد النهائي للتقديم", "platform_settings");
+  const alertEl = document.getElementById("gs-schedule-alert");
   alertEl.style.display = "inline";
   setTimeout(() => alertEl.style.display = "none", 2500);
 }
@@ -1603,6 +1740,369 @@ async function saveMilestone(id){
   showToast(id ? "تم التحديث" : "تمت الإضافة");
   closeModal();
   renderJourneyMilestones();
+}
+
+async function renderDeliverables(){
+  const box = document.getElementById("main-content");
+  box.innerHTML = `
+    <div class="page-header">
+      <div><h1>التسليمات المطلوبة</h1>
+      <p>عرّف ما يجب على الفرق تسليمه، وتابع من سلّم ومن تأخّر</p></div>
+      <button class="btn btn-primary" onclick="openDeliverableForm()">+ مطلوب جديد</button>
+    </div>
+    <div id="deliv-summary">${skeletonRows(2)}</div>
+
+    <div class="card" style="margin-top:14px"><div id="deliv-list">${skeletonRows(3)}</div></div>`;
+  if(window.lucide) lucide.createIcons();
+  await loadDeliverables();
+}
+
+/* ---------------- ملفات اللجان ---------------- */
+// تحميل تسليمات لجنة واحدة بدل فرز كل المشاريع يدويًا.
+
+let _delivByCom = [];
+
+
+function downloadCommitteeFiles(comName){
+  const rows = _delivByCom.filter(r => (r.اللجنة || "— بلا لجنة") === comName);
+  if(!rows.length){ showToast("لا ملفات", true); return; }
+
+  const head = ["ترتيب التحكيم", "رقم المشروع", "الفريق", "المسار",
+                "التسليم", "اسم الملف", "الحجم KB", "الرابط", "ملاحظة الفريق"];
+  const body = rows.map(r => [
+    r.ترتيب_التحكيم ?? "", r.رمز_الفريق ?? "", r.الفريق ?? "",
+    r.المسار ?? "", r.التسليم ?? "", r.اسم_الملف ?? "",
+    r.الحجم_كيلوبايت ?? "", r.رابط_الملف ?? "", r.ملاحظة_الفريق ?? ""
+  ]);
+
+  // BOM ليقرأ Excel العربية صحيحة
+  const csv = "\ufeff" + [head, ...body]
+    .map(x => x.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    .join("\r\n");
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `ملفات-${comName.replace(/[\\/:*?"<>|]/g, "-")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`صُدّر ${rows.length} ملفًا`);
+}
+
+
+async function loadDeliverables(){
+  const [dRes, sRes] = await Promise.all([
+    sb.from("deliverables").select("*, tracks(name_ar)").order("sort_order").order("created_at"),
+    sb.from("deliverables_status").select("*")
+  ]);
+  const list = document.getElementById("deliv-list");
+  if(dRes.error){ list.innerHTML = `<p class="empty">${esc(dRes.error.message)}</p>`; return; }
+
+  const items = dRes.data || [];
+  const status = sRes.data || [];
+  window._delivCache = items;   // نموذج التعديل يقرأ منها
+
+  if(!items.length){
+    document.getElementById("deliv-summary").innerHTML = "";
+    list.innerHTML = `<p class="empty">لم تُعرَّف تسليمات بعد. اضغط «مطلوب جديد» للبدء.</p>`;
+    return;
+  }
+
+  // ملخّص علوي
+  const totalTeams = new Set(status.map(r => r.team_id)).size;
+  const submitted  = status.filter(r => r.submission_id).length;
+  const late       = status.filter(r => r.الحالة === "متأخر").length;
+  const pending    = status.filter(r => r.الحالة === "بانتظار المراجعة").length;
+  document.getElementById("deliv-summary").innerHTML = `
+    <div class="stats-grid">
+      ${statCard(items.length, "المطلوبات")}
+      ${statCard(totalTeams, "الفرق")}
+      ${statCard(submitted, "تسليمات مستلمة")}
+      ${statCard(pending, "بانتظار المراجعة", pending > 0)}
+      ${statCard(late, "متأخرة", late > 0)}
+    </div>`;
+
+  list.innerHTML = items.map(d => {
+    const rows = status.filter(r => r.deliverable_id === d.id);
+    const done = rows.filter(r => r.submission_id).length;
+    const pct  = rows.length ? Math.round(done / rows.length * 100) : 0;
+    const due  = d.due_at ? fmtDateTimeAr(d.due_at) : "بلا موعد";
+    return `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <strong style="font-size:15px">${esc(d.title)}</strong>
+            ${d.is_required ? '<span class="badge badge-gold">إلزامي</span>' : '<span class="badge">اختياري</span>'}
+            ${d.is_open ? '<span class="badge badge-green">مفتوح</span>' : '<span class="badge badge-gray">مغلق</span>'}
+            ${d.tracks ? `<span class="badge">${esc(d.tracks.name_ar)}</span>` : ""}
+          </div>
+          ${d.description ? `<p class="hint" style="margin:6px 0 0">${esc(d.description)}</p>` : ""}
+          <p class="hint" style="margin:6px 0 0">الموعد: ${esc(due)}</p>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" style="width:auto" onclick="openDeliverableForm('${d.id}')">تعديل</button>
+          <button class="btn btn-outline btn-sm" style="width:auto" onclick="viewDeliverableSubs('${d.id}')">التسليمات</button>
+          <button class="btn btn-outline btn-sm" style="width:auto;color:var(--danger)" onclick="deleteDeliverable('${d.id}','${esc(d.title)}')">حذف</button>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px">
+          <span>${done} من ${rows.length} فريقًا</span><span>${pct}%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+  }).join("");
+  if(window.lucide) lucide.createIcons();
+}
+
+function openDeliverableForm(id){
+  sb.from("tracks").select("id,name_ar").order("display_order").then(({data:tracks}) => {
+    const d = id ? window._delivCache?.find(x => x.id === id) : null;
+    openModal(`
+      <h3>${id ? "تعديل مطلوب" : "مطلوب جديد"}</h3>
+      <div class="field"><label>العنوان *</label>
+        <input id="dv-title" value="${esc(d?.title || "")}" placeholder=""></div>
+      <div class="field"><label>الوصف — ما المطلوب بالضبط؟</label>
+        <textarea id="dv-desc" rows="3">${esc(d?.description || "")}</textarea></div>
+      <div class="field"><label>الموعد النهائي (اختياري)</label>
+        <input type="datetime-local" id="dv-due" value="${d?.due_at ? d.due_at.slice(0,16) : ""}"></div>
+      <div class="field"><label>المسار (فارغ = كل المسارات)</label>
+        <select id="dv-track"><option value="">كل المسارات</option>
+          ${(tracks||[]).map(t => `<option value="${t.id}" ${d?.track_id===t.id?"selected":""}>${esc(t.name_ar)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>الصيغ المسموحة (مفصولة بفاصلة)</label>
+        <input id="dv-types" value="${esc(d?.allowed_types || "pdf,pptx,docx")}" placeholder="pdf,pptx"></div>
+      <div class="field"><label>الحجم الأقصى (ميجابايت)</label>
+        <input type="number" id="dv-size" value="${d?.max_size_mb ?? 25}" min="1" max="100"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin:8px 0">
+        <input type="checkbox" id="dv-required" ${d?.is_required !== false ? "checked" : ""}> إلزامي</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <input type="checkbox" id="dv-open" ${d?.is_open !== false ? "checked" : ""}> مفتوح للرفع</label>
+      <div id="dv-alert" class="alert"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveDeliverable('${id||""}')">حفظ</button>
+        <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      </div>`);
+  });
+}
+
+async function saveDeliverable(id){
+  const title = document.getElementById("dv-title").value.trim();
+  const alert = document.getElementById("dv-alert");
+  if(!title){ alert.className = "alert alert-error"; alert.textContent = "العنوان مطلوب"; return; }
+  const due = document.getElementById("dv-due").value;
+  const payload = {
+    title,
+    description: document.getElementById("dv-desc").value.trim() || null,
+    due_at: due ? new Date(due).toISOString() : null,
+    track_id: document.getElementById("dv-track").value || null,
+    allowed_types: document.getElementById("dv-types").value.trim() || null,
+    max_size_mb: parseInt(document.getElementById("dv-size").value) || 25,
+    is_required: document.getElementById("dv-required").checked,
+    is_open: document.getElementById("dv-open").checked
+  };
+  if(!id) payload.created_by = (await sb.auth.getUser()).data.user?.id;
+  const q = id ? sb.from("deliverables").update(payload).eq("id", id)
+               : sb.from("deliverables").insert(payload);
+  const { error } = await q;
+  if(error){ alert.className = "alert alert-error"; alert.textContent = error.message; return; }
+  logActivity(id ? "تعديل تسليم مطلوب" : "إضافة تسليم مطلوب", "deliverables", id || null, { title });
+  closeModal(); showToast("حُفظ"); loadDeliverables();
+}
+
+async function deleteDeliverable(id, title){
+  if(!confirm(`حذف «${title}»؟\n\nسيُحذف معه كل ما سلّمته الفرق لهذا المطلوب.`)) return;
+  const { error } = await sb.from("deliverables").delete().eq("id", id);
+  if(error){ showToast(error.message, true); return; }
+  logActivity("حذف تسليم مطلوب", "deliverables", id, { title });
+  showToast("حُذف"); loadDeliverables();
+}
+
+/* ---------------- فلترة تسليمات المطلوب ---------------- */
+// اللجنة والحالة والبحث — لتسليم ملفات لجنة واحدة لمحكّميها.
+
+function filterDelivSubs(){
+  const val = id => document.getElementById(id)?.value || "";
+  const term = val("dv-search").trim().toLowerCase();
+  const com  = val("dv-com"), stt = val("dv-status");
+
+  const rows = (window._delivRows || []).filter(r => {
+    if(com && r._com !== com) return false;
+    if(stt === "سلّم"    && !r.submission_id) return false;
+    if(stt === "لم يسلّم" &&  r.submission_id) return false;
+    if(!term) return true;
+    return (r.team_name || "").toLowerCase().includes(term);
+  }).sort((a, b) => (a._order ?? 999) - (b._order ?? 999)
+                 || (a.team_name || "").localeCompare(b.team_name || "", "ar"));
+
+  const body = document.getElementById("dv-body");
+  if(body){
+    body.innerHTML = rows.length ? rows.map(r => `<tr>
+      <td style="text-align:center">${r._order ?? "—"}</td>
+      <td>${esc(r.team_name)}</td>
+      <td>${esc(r._com || "—")}</td>
+      <td>${esc(r.track_name || "—")}</td>
+      <td>${delivStatusBadge(r.الحالة)}</td>
+      <td>${r.file_url
+        ? `<a href="${esc(r.file_url)}" target="_blank" rel="noopener">${esc(r.file_name || "تحميل")}</a>`
+        : "—"}</td>
+      <td>${r.submission_id
+        ? `<button class="btn btn-outline btn-sm" style="width:auto;padding:3px 9px"
+             onclick="reviewDelivSub('${r.submission_id}')">مراجعة</button>`
+        : "—"}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">
+         لا نتائج مطابقة</td></tr>`;
+  }
+
+  const cnt = document.getElementById("dv-count");
+  if(cnt){
+    const done = rows.filter(r => r.submission_id).length;
+    cnt.textContent = `${done} من ${rows.length} فريقًا سلّموا`;
+  }
+}
+
+function exportDelivSubs(){
+  const val = id => document.getElementById(id)?.value || "";
+  const com = val("dv-com"), stt = val("dv-status");
+  const term = val("dv-search").trim().toLowerCase();
+
+  const rows = (window._delivRows || []).filter(r => {
+    if(com && r._com !== com) return false;
+    if(stt === "سلّم"    && !r.submission_id) return false;
+    if(stt === "لم يسلّم" &&  r.submission_id) return false;
+    if(!term) return true;
+    return (r.team_name || "").toLowerCase().includes(term);
+  }).sort((a, b) => (a._order ?? 999) - (b._order ?? 999));
+
+  if(!rows.length){ showToast("لا نتائج للتصدير", true); return; }
+
+  const head = ["ترتيب التحكيم", "الفريق", "اللجنة", "المسار",
+                "الحالة", "اسم الملف", "الرابط"];
+  const body = rows.map(r => [
+    r._order ?? "", r.team_name ?? "", r._com ?? "", r.track_name ?? "",
+    r.الحالة ?? "", r.file_name ?? "", r.file_url ?? ""
+  ]);
+
+  // BOM ليقرأ Excel العربية صحيحة
+  const csv = "\ufeff" + [head, ...body]
+    .map(x => x.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    .join("\r\n");
+
+  const label = com ? com.replace(/[\\/:*?"<>|]/g, "-") : "الكل";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `تسليمات-${label}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`صُدّر ${rows.length} صفًّا`);
+}
+
+async function viewDeliverableSubs(id){
+  const [subRes, comRes] = await Promise.all([
+    sb.from("deliverables_status").select("*").eq("deliverable_id", id).order("team_name"),
+    sb.from("deliverables_by_committee").select("team_id, اللجنة, ترتيب_التحكيم")
+      .eq("deliverable_id", id)
+  ]);
+  if(subRes.error){ showToast(subRes.error.message, true); return; }
+
+  // لجنة كل فريق وترتيبه — للفلترة والفرز
+  const comOf = {};
+  (comRes.data || []).forEach(c => {
+    comOf[c.team_id] = { name: c.اللجنة, order: c.ترتيب_التحكيم };
+  });
+
+  window._delivRows = (subRes.data || []).map(r => ({
+    ...r,
+    _com:   comOf[r.team_id]?.name  || null,
+    _order: comOf[r.team_id]?.order ?? null
+  }));
+  window._delivId = id;
+
+  const rows = window._delivRows;
+  const coms = [...new Set(rows.map(r => r._com).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "ar"));
+  const title = rows[0]?.deliverable_title || "التسليمات";
+
+  openModal(`
+    <h3>${esc(title)}</h3>
+    <p class="hint" id="dv-count">${rows.filter(r=>r.submission_id).length} من ${rows.length} فريقًا سلّموا</p>
+
+    <div class="dv-bar">
+      <div class="field" style="margin:0;flex:1;min-width:150px">
+        <label>بحث بالفريق</label>
+        <input id="dv-search" placeholder="اكتب للبحث..." oninput="filterDelivSubs()">
+      </div>
+      <div class="field" style="margin:0;min-width:165px">
+        <label>اللجنة</label>
+        <select id="dv-com" onchange="filterDelivSubs()">
+          <option value="">كل اللجان</option>
+          ${coms.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field" style="margin:0;min-width:140px">
+        <label>الحالة</label>
+        <select id="dv-status" onchange="filterDelivSubs()">
+          <option value="">الكل</option>
+          <option value="سلّم">سلّم</option>
+          <option value="لم يسلّم">لم يسلّم</option>
+        </select>
+      </div>
+      <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:2px"
+        onclick="exportDelivSubs()">تصدير</button>
+    </div>
+
+    <div style="max-height:52vh;overflow:auto;margin-top:12px">
+      <table class="table"><thead><tr>
+        <th style="width:58px">الترتيب</th>
+        <th>الفريق</th><th>اللجنة</th><th>المسار</th><th>الحالة</th><th>الملف</th><th>المراجعة</th>
+      </tr></thead><tbody id="dv-body">
+      ${rows.map(r => `<tr>
+        <td style="text-align:center">${r._order ?? "—"}</td>
+        <td>${esc(r.team_name)}</td>
+        <td>${esc(r._com || "—")}</td>
+        <td>${esc(r.track_name || "—")}</td>
+        <td>${delivStatusBadge(r.الحالة)}</td>
+        <td>${r.file_url ? `<a href="${esc(r.file_url)}" target="_blank" rel="noopener">${esc(r.file_name || "تحميل")}</a>` : "—"}</td>
+        <td>${r.submission_id ? `
+          <button class="btn btn-outline btn-sm" style="width:auto;padding:3px 9px"
+            onclick="reviewDelivSub('${r.submission_id}','accepted')">قبول</button>
+          <button class="btn btn-outline btn-sm" style="width:auto;padding:3px 9px;color:var(--danger)"
+            onclick="reviewDelivSub('${r.submission_id}','rejected')">رفض</button>` : "—"}</td>
+      </tr>`).join("")}
+      </tbody></table>
+    </div>
+    <button class="btn btn-outline" style="margin-top:12px" onclick="closeModal()">إغلاق</button>`);
+}
+
+function delivStatusBadge(st){
+  const map = {
+    "مقبول": "badge-green", "مرفوض": "badge-red",
+    "متأخر": "badge-red", "لم يُسلَّم": "badge-gray",
+    "بانتظار المراجعة": "badge-gold"
+  };
+  return `<span class="badge ${map[st] || ""}">${esc(st)}</span>`;
+}
+
+async function reviewDelivSub(id, status){
+  const note = status === "rejected" ? prompt("سبب الرفض (يظهر للفريق):") : null;
+  if(status === "rejected" && !note) return;
+  const { error } = await sb.from("deliverable_submissions").update({
+    review_status: status, review_note: note,
+    reviewed_by: (await sb.auth.getUser()).data.user?.id,
+    reviewed_at: new Date().toISOString()
+  }).eq("id", id);
+  if(error){ showToast(error.message, true); return; }
+  showToast(status === "accepted" ? "قُبل" : "رُفض");
+  closeModal(); loadDeliverables();
+}
+
+function fmtDateTimeAr(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString("ar-SA-u-nu-latn", {day:"2-digit", month:"long", year:"numeric"})
+       + " · " + d.toLocaleTimeString("ar-SA-u-nu-latn", {hour:"2-digit", minute:"2-digit"});
 }
 
 /* ============================================================
@@ -2241,7 +2741,7 @@ async function addMemberToTeam(userId, userName){
 let mentorshipTab = "overview";
 async function renderMentorshipAdmin(){
   const main = document.getElementById("main-content");
-  main.innerHTML = `<div class="page-header"><div><h1>إدارة الإرشاد</h1><p>تحكّم كامل بعملية الإرشاد: مين يوجّه الفرق للمرشدين، ومتابعة كل الحجوزات</p></div></div>
+  main.innerHTML = `<div class="page-header"><div><h1>إدارة الإرشاد</h1><p>إدارة عملية الإرشاد: توجيه الفرق للمرشدين، وضبط قواعد الحجز، ومتابعة المواعيد</p></div></div>
     <div class="tabs" id="mentorship-tabs">
       <div class="tab ${mentorshipTab==='overview'?'active':''}" data-t="overview">نظرة عامة</div>
       <div class="tab ${mentorshipTab==='mentors'?'active':''}" data-t="mentors">المرشدون</div>
@@ -2290,73 +2790,174 @@ async function renderMentorshipOverview(){
   `;
 }
 
-/* ---------------- تحضير المرشدين ---------------- */
-// الحضور صالح لليوم نفسه بتوقيت الرياض فقط (مطابق لدالة is_mentor_present_today)
-function riyadhDay(d){ return new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"}); }
-function isPresentToday(p){ return !!(p && p.mentor_present && p.mentor_present_at && riyadhDay(p.mentor_present_at) === riyadhDay(Date.now())); }
-function mentorPresenceCell(userId, p){
-  const present = isPresentToday(p);
-  const time = present ? new Date(p.mentor_present_at).toLocaleTimeString("ar-SA", {timeZone:"Asia/Riyadh", hour:"numeric", minute:"2-digit"}) : "";
-  return present
-    ? `<span class="badge badge-green">حاضر · ${esc(time)}</span><br><button class="btn-link" style="font-size:12px;color:var(--danger);margin-top:4px" onclick='toggleMentorPresence(${jsArg(userId)}, false)'>إلغاء الحضور</button>`
-    : `<span class="badge" style="background:var(--border-light);color:var(--muted)">غير مسجَّل</span><br><button class="btn btn-outline btn-sm" style="margin-top:6px" onclick='toggleMentorPresence(${jsArg(userId)}, true)'>تسجيل الحضور</button>`;
-}
-async function toggleMentorPresence(userId, present){
-  const { data, error } = await sb.rpc("set_mentor_presence", { p_user_id: userId, p_present: present });
-  if(error || !data?.success){ showToast((data && data.error) || error?.message || "تعذّر تحديث الحضور", true); return; }
-  showToast(present ? "تم تسجيل حضور المرشد — مواعيده ظاهرة الآن للفرق" : "تم إلغاء حضور المرشد — أُخفيت مواعيده عن الفرق");
+/* ---------------- المرشدون ---------------- */
+let mentorsStatusFilter = "";   // "" = الكل | "active" | "inactive"
+let mentorsCache = null;        // نحتفظ بآخر جلب لإعادة الفلترة بلا استعلام جديد
+
+async function toggleMentorPresenceAdmin(userId, present){
+  const { data, error } = await sb.rpc("set_mentor_presence", {
+    p_user_id: userId, p_present: present
+  });
+  if(error || !data?.success){
+    showToast(data?.error || error?.message || "تعذّر الإجراء", true);
+    return;
+  }
+  logActivity(present ? "تسجيل حضور مرشد" : "تسجيل انصراف مرشد", "profiles", userId);
+  showToast(present ? "سُجّل الحضور" : "سُجّل الانصراف");
   renderMentorshipMentorsList();
 }
 
-/* ---------------- المرشدون ---------------- */
 async function renderMentorshipMentorsList(){
   const body = document.getElementById("mentorship-body");
   body.innerHTML = `<div class="card">
       <div class="toolbar" style="margin-bottom:14px">
-        <div id="mentor-presence-summary" class="hint" style="margin:0"></div>
+        <div class="field" style="margin:0;min-width:190px">
+          <select id="mentors-status-filter" onchange="applyMentorsStatusFilter()">
+            <option value="">كل المرشدين</option>
+            <option value="active">النشطون فقط</option>
+            <option value="inactive">المعطَّلون فقط</option>
+          </select>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="openAddMentorModal()">+ إضافة مرشد</button>
       </div>
       <div id="mentors-mgmt-table">${skeletonRows(4)}</div>
     </div>`;
+  const sel = document.getElementById("mentors-status-filter");
+  if(sel) sel.value = mentorsStatusFilter;
 
   const { data: mentorRoles } = await sb.from("user_roles")
-    .select("id, user_id, profiles!user_roles_user_id_fkey(full_name, email, specialization, current_position, bio, mentor_present, mentor_present_at), roles!inner(key)")
+    .select("id, user_id, profiles!user_roles_user_id_fkey(full_name, email, specialization, current_position, bio, is_active, deactivation_reason, deactivated_at, mentor_present, mentor_present_at), roles!inner(key)")
     .eq("roles.key", "mentor");
 
   const { data: slots } = await sb.from("mentor_slots").select("id, mentor_user_id, is_booked, start_time");
   const { data: bookings } = await sb.from("mentor_bookings").select("id, status, slot_id, mentor_slots(mentor_user_id)");
 
+  mentorsCache = { mentorRoles: mentorRoles||[], slots: slots||[], bookings: bookings||[] };
+  drawMentorsTable();
+}
+
+function applyMentorsStatusFilter(){
+  mentorsStatusFilter = document.getElementById("mentors-status-filter").value;
+  drawMentorsTable();
+}
+
+function drawMentorsTable(){
   const box = document.getElementById("mentors-mgmt-table");
-  const { data: presenceReq } = await sb.rpc("mentor_presence_required");
-  const presentCount = (mentorRoles||[]).filter(m => isPresentToday(m.profiles)).length;
-  const sumBox = document.getElementById("mentor-presence-summary");
-  if(sumBox) sumBox.innerHTML = presenceReq === false
-    ? `ربط المواعيد بالحضور: <strong style="color:var(--danger)">موقوف</strong> — كل المواعيد ظاهرة للفرق`
-    : `الحاضرون اليوم: <strong style="color:var(--ink)">${presentCount} / ${(mentorRoles||[]).length}</strong> — لا تظهر للفرق إلا مواعيد المرشدين الحاضرين`;
-  if(!mentorRoles || !mentorRoles.length){ box.innerHTML = emptyIllustration("graduation-cap", "لا يوجد مرشدون بعد", "أضف أول مرشد بالزر أعلاه ليبدأ بدعم الفرق"); return; }
+  if(!box || !mentorsCache) return;
+  const { mentorRoles, slots, bookings } = mentorsCache;
+
+  if(!mentorRoles.length){
+    box.innerHTML = emptyIllustration("graduation-cap", "لا يوجد مرشدون بعد", "أضف أول مرشد بالزر أعلاه ليبدأ بدعم الفرق");
+    return;
+  }
+
+  const rows = mentorRoles.filter(m => {
+    const active = m.profiles?.is_active !== false;
+    if(mentorsStatusFilter === "active")   return active;
+    if(mentorsStatusFilter === "inactive") return !active;
+    return true;
+  });
+
+  if(!rows.length){
+    box.innerHTML = `<div style="text-align:center;padding:26px;color:var(--muted);font-size:13px">لا يوجد مرشدون بهذه الحالة</div>`;
+    return;
+  }
 
   box.innerHTML = `<table><thead><tr>
-    <th>المرشد</th><th>حضور اليوم</th><th>التخصص / المسمى الوظيفي</th><th>إجمالي المواعيد</th><th>المحجوزة</th><th>الجلسات المغلقة</th><th></th>
+    <th>المرشد</th><th>الحالة</th><th>حضور اليوم</th><th>التخصص / المسمى الوظيفي</th><th>إجمالي المواعيد</th><th>المحجوزة</th><th>الجلسات المغلقة</th><th></th>
     </tr></thead><tbody>
-    ${mentorRoles.map(m => {
-      const mySlots = (slots||[]).filter(s => s.mentor_user_id === m.user_id);
+    ${rows.map(m => {
+      const mySlots = slots.filter(s => s.mentor_user_id === m.user_id);
       const myBooked = mySlots.filter(s => s.is_booked).length;
-      const myClosed = (bookings||[]).filter(b => b.mentor_slots?.mentor_user_id === m.user_id && b.status === "completed").length;
+      const myClosed = bookings.filter(b => b.mentor_slots?.mentor_user_id === m.user_id && b.status === "completed").length;
       const hasFutureSlots = mySlots.some(s => new Date(s.start_time) > new Date() && s.is_booked);
-      return `<tr>
-        <td><strong>${esc(m.profiles?.full_name||"—")}</strong><br><span style="color:var(--muted);font-size:12px">${esc(m.profiles?.email||"")}</span></td>
-        <td>${mentorPresenceCell(m.user_id, m.profiles)}</td>
+      const active = m.profiles?.is_active !== false;
+      const name = m.profiles?.full_name || "";
+      const reason = m.profiles?.deactivation_reason || "";
+      return `<tr${active ? "" : ` style="opacity:.62"`}>
+        <td><strong>${esc(name||"—")}</strong><br><span style="color:var(--muted);font-size:12px">${esc(m.profiles?.email||"")}</span></td>
+        <td>
+          ${active
+            ? `<span class="badge badge-green">نشط</span>`
+            : `<span class="badge badge-gray">معطَّل</span>${reason ? `<br><span style="color:var(--muted);font-size:11.5px" title="${esc(reason)}">${esc(reason.length > 34 ? reason.slice(0,34)+"…" : reason)}</span>` : ""}`}
+        </td>
+        <td>${(() => {
+          // الحضور صالح ليومه فقط — مواعيد المرشد لا تظهر للفرق بدونه
+          const at = m.profiles?.mentor_present_at ? new Date(m.profiles.mentor_present_at) : null;
+          const today = at && at.toDateString() === new Date().toDateString();
+          const here = !!m.profiles?.mentor_present && today;
+          return `${here ? '<span class="badge badge-green">حاضر</span>'
+                         : '<span class="badge badge-gray">غير مسجَّل</span>'}
+            <br><button class="btn btn-outline btn-sm" style="width:auto;padding:3px 10px;margin-top:5px;font-size:11.5px"
+              onclick="toggleMentorPresenceAdmin('${m.user_id}', ${!here})">
+              ${here ? 'تسجيل الانصراف' : 'تسجيل الحضور'}</button>`;
+        })()}</td>
         <td>${esc(m.profiles?.specialization||"—")}<br><span style="color:var(--muted);font-size:12px">${esc(m.profiles?.current_position||"")}</span></td>
         <td>${mySlots.length}</td>
         <td>${myBooked}</td>
         <td><span class="badge badge-green">${myClosed}</span></td>
         <td class="row-actions">
-          ${hasFutureSlots ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick='markMentorUnavailable("${m.user_id}", ${jsArg(m.profiles?.full_name||"")})'>⏸ تعطيل مؤقت</button>` : ""}
-          <button class="btn btn-danger btn-sm" onclick='removeMentorRole("${m.id}", ${jsArg(m.profiles?.full_name||"")})'>حذف من المرشدين</button>
+          ${active
+            ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick='openDeactivateMentorModal("${m.user_id}", ${jsArg(name)})'>تعطيل</button>`
+            : `<button class="btn btn-outline btn-sm" onclick='reactivateMentor("${m.user_id}", ${jsArg(name)})'>إعادة تفعيل</button>`}
+          ${active && hasFutureSlots ? `<button class="btn btn-outline btn-sm" onclick='markMentorUnavailable("${m.user_id}", ${jsArg(name)})'>إلغاء مواعيده القادمة</button>` : ""}
+          <button class="btn btn-danger btn-sm" onclick='removeMentorRole("${m.id}", ${jsArg(name)})'>حذف من المرشدين</button>
         </td>
       </tr>`;
     }).join("")}
     </tbody></table>`;
+}
+
+/* ---- تعطيل / إعادة تفعيل المرشد ---- */
+async function openDeactivateMentorModal(mentorId, mentorName){
+  openModal(`
+    <h3>تعطيل المرشد</h3>
+    <p class="hint" style="margin:-8px 0 14px">${esc(mentorName)}</p>
+    <div id="deact-impact" style="font-size:12.5px;color:var(--muted);margin-bottom:12px">جاري حساب الأثر...</div>
+    <div class="field">
+      <label>سبب التعطيل <span style="color:var(--danger)">*</span></label>
+      <textarea id="deact-reason" rows="3" placeholder=""></textarea>
+    </div>
+    <div class="alert" style="font-size:12.5px">التعطيل يمنعه من دخول لوحة الإرشاد ومن إضافة مواعيد جديدة، ويمنع الفرق من حجز مواعيده. مواعيده المحجوزة الحالية تبقى كما هي — ألغِها يدويًا إذا لزم.</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-danger" onclick='confirmDeactivateMentor("${mentorId}", ${jsArg(mentorName)})'>تعطيل</button>
+    </div>
+  `);
+
+  // عرض عدد الجلسات القادمة المتأثرة قبل اتخاذ القرار
+  const { data: slots } = await sb.from("mentor_slots")
+    .select("id, start_time, mentor_bookings(status)")
+    .eq("mentor_user_id", mentorId)
+    .gt("start_time", new Date().toISOString());
+  const upcoming = (slots||[]).filter(s => (s.mentor_bookings||[]).some(b => ["pending","confirmed"].includes(b.status))).length;
+  const el = document.getElementById("deact-impact");
+  if(el) el.innerHTML = upcoming > 0
+    ? `<span style="color:var(--danger)">تنبيه: لديه <strong>${upcoming}</strong> جلسة قادمة محجوزة — لن تُلغى تلقائيًا.</span>`
+    : `لا توجد جلسات قادمة محجوزة له.`;
+}
+
+async function confirmDeactivateMentor(mentorId, mentorName){
+  const reason = document.getElementById("deact-reason").value.trim();
+  if(!reason){ showToast("سبب التعطيل إلزامي", true); return; }
+
+  // عبر دالة في الخادم: لا تملك الواجهة صلاحية تعديل ملفات المستخدمين مباشرة
+  const { data, error } = await sb.rpc("set_mentor_active", { p_user_id: mentorId, p_active: false, p_reason: reason });
+  if(error || !data?.success){ showToast("خطأ: " + ((data && data.error) || error?.message || ""), true); return; }
+  logActivity("تعطيل مرشد", "user", mentorId, { name: mentorName, reason });
+  showToast(`تم تعطيل ${mentorName}`);
+  closeModal();
+  renderMentorshipMentorsList();
+}
+
+async function reactivateMentor(mentorId, mentorName){
+  if(!confirm(`إعادة تفعيل ${mentorName}؟ سيتمكّن من دخول لوحة الإرشاد وإضافة المواعيد، وتقدر الفرق تحجز معه.`)) return;
+
+  const { data, error } = await sb.rpc("set_mentor_active", { p_user_id: mentorId, p_active: true, p_reason: null });
+  if(error || !data?.success){ showToast("خطأ: " + ((data && data.error) || error?.message || ""), true); return; }
+  logActivity("إعادة تفعيل مرشد", "user", mentorId, { name: mentorName });
+  showToast(`تم تفعيل ${mentorName}`);
+  renderMentorshipMentorsList();
 }
 
 async function openAddMentorModal(){
@@ -2421,10 +3022,10 @@ async function removeMentorRole(userRoleId, userName){
   renderMentorshipMentorsList();
 }
 async function markMentorUnavailable(mentorId, mentorName){
-  if(!confirm(`متأكد إن ${mentorName} غير متاح؟ راح تُلغى كل مواعيده القادمة المحجوزة تلقائيًا، وتوصل الفرق المتأثرة إشعار فوري.`)) return;
+  if(!confirm(`تأكيد أن ${mentorName} غير متاح؟ ستُلغى كل مواعيده القادمة المحجوزة تلقائيًا، وتوصل الفرق المتأثرة إشعار فوري.`)) return;
   const { data, error } = await sb.rpc("cancel_mentor_future_bookings", { p_mentor_id: mentorId });
   if(error || !data.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
-  logActivity("تعطيل مرشد مؤقتًا", "user", mentorId, {cancelled_bookings: data.cancelled_count});
+  logActivity("إلغاء مواعيد مرشد القادمة", "user", mentorId, {name: mentorName, cancelled_bookings: data.cancelled_count});
   showToast(`تم إلغاء ${data.cancelled_count} موعد وإشعار الفرق المتأثرة`);
   renderMentorshipMentorsList();
 }
@@ -2594,16 +3195,454 @@ async function cancelMentorBooking(bookingId){
 /* ---------------- إعدادات التوجيه ---------------- */
 async function renderMentorshipSettings(){
   const body = document.getElementById("mentorship-body");
-  const { data } = await sb.from("platform_settings").select("value").eq("key","mentorship_mode").maybeSingle();
-  const currentMode = data?.value || "self";
-  const modeLabel = currentMode === "admin_only" ? "توجيه من الإدارة فقط" : "حجز ذاتي من الفريق";
+  body.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
 
-  body.innerHTML = `<div class="card">
-    <h3 style="margin:0 0 10px">من يوجّه الفرق للمرشدين؟</h3>
-    <p class="hint" style="margin-bottom:16px">الوضع الحالي: <strong style="color:var(--ink)">${modeLabel}</strong></p>
-    <button class="btn btn-outline" onclick="navigateTo('generalSettings')">تعديل من الإعدادات العامة →</button>
-    <p class="hint" style="margin-top:14px">توحّد هذا الإعداد بصفحة "الإعدادات العامة" — مكان واحد لكل إعدادات المنصة</p>
-  </div>`;
+  const { data: rows } = await sb.from("platform_settings")
+    .select("key,value")
+    .in("key", ["mentorship_mode","max_bookings_per_day","allow_same_mentor_gap",
+                "same_mentor_gap_hours","booking_lead_minutes","booking_opens_at"]);
+
+  const S = Object.fromEntries((rows||[]).map(r => [r.key, r.value]));
+  const mode = S.mentorship_mode || "self";
+  const modeLabel = mode === "admin_only" ? "توجيه من الإدارة فقط" : "حجز ذاتي من الفريق";
+
+  body.innerHTML = `
+    <div class="card">
+      <h3 style="margin:0 0 10px">من يوجّه الفرق للمرشدين؟</h3>
+      <p class="hint" style="margin-bottom:16px">
+        الوضع الحالي: <strong style="color:var(--ink)">${modeLabel}</strong></p>
+      <button class="btn btn-outline" onclick="navigateTo('generalSettings')">
+        تعديل من الإعدادات العامة</button>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 6px">ضوابط الحجز</h3>
+      <p class="hint" style="margin:0 0 18px">
+        تُطبَّق على الفرق فقط — الإدارة تحجز نيابةً بلا قيد</p>
+
+      <div class="settings-grid">
+        <div class="field">
+          <label>أقصى جلسات للفريق في اليوم</label>
+          <input type="number" id="mb-max-day" min="0" max="20"
+                 value="${esc(S.max_bookings_per_day ?? '6')}">
+          <p class="hint">0 = بلا حد</p>
+        </div>
+
+        <div class="field">
+          <label>أقل مهلة قبل الموعد (دقائق)</label>
+          <input type="number" id="mb-lead" min="0" max="1440"
+                 value="${esc(S.booking_lead_minutes ?? '0')}">
+          <p class="hint">0 = الحجز متاح حتى بداية الموعد</p>
+        </div>
+
+        <div class="field">
+          <label>الفاصل بين جلستين مع المرشد نفسه (ساعات)</label>
+          <input type="number" id="mb-gap" min="0" max="24"
+                 value="${esc(S.same_mentor_gap_hours ?? '3')}">
+          <p class="hint">0 = يُسمح بجلسات متتالية مع المرشد نفسه</p>
+        </div>
+
+        <div class="field">
+          <label>موعد فتح الحجز</label>
+          <input type="datetime-local" id="mb-opens"
+                 value="${S.booking_opens_at ? esc(String(S.booking_opens_at).slice(0,16)) : ''}">
+          <p class="hint">اتركه فارغًا ليكون الحجز مفتوحًا</p>
+        </div>
+      </div>
+
+      <div id="mb-alert" class="alert" style="margin-top:6px"></div>
+      <button class="btn btn-primary" style="width:auto" onclick="saveBookingRules()">
+        حفظ الضوابط</button>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 10px">حالة الإرشاد الآن</h3>
+      <div id="mb-health"><p class="hint">جارٍ الفحص...</p></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 6px">مسارات الميسّرين</h3>
+      <p class="hint" style="margin:0 0 14px">
+        الميسّر المسنَد لمسار يرى فرق مساره فقط. ومن لم يُسنَد يرى الجميع.
+      </p>
+      <div id="fac-tracks"><p class="hint">جارٍ التحميل...</p></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 6px">جلسات تنتظر تأكيدًا</h3>
+      <p class="hint" style="margin:0 0 14px">
+        مضى وقتها ولم يؤكّد المرشد انعقادها — تابعها معه أو أكّدها نيابةً عنه
+      </p>
+      <div id="mb-unconfirmed"><p class="hint">جارٍ التحميل...</p></div>
+    </div>`;
+
+  loadMentorshipHealth();
+  loadUnconfirmedSessions();
+  loadFacilitatorTracks();
+}
+
+/* ---------------- مسارات الميسّرين ---------------- */
+// عدة ميسّرين، كلٌّ لمسار: الميسّر يرى فرق مساره فقط بدل قائمة
+// كل الفرق.
+
+async function loadFacilitatorTracks(){
+  const box = document.getElementById("fac-tracks");
+  if(!box) return;
+
+  const [asg, tracks] = await Promise.all([
+    sb.from("facilitator_assignments").select("*"),
+    sb.from("tracks").select("id,name_ar").eq("is_active", true).order("display_order")
+  ]);
+
+  if(asg.error){
+    box.innerHTML = `<p class="hint">${esc(asg.error.message)}</p>`;
+    return;
+  }
+  window._allTracks = tracks.data || [];
+
+  const list = asg.data || [];
+  if(!list.length){
+    box.innerHTML = `<div class="empty-state">لا ميسّرون معتمدون بعد</div>`;
+    return;
+  }
+
+  box.innerHTML = `
+    <table class="table"><thead><tr>
+      <th>الميسّر</th><th>البريد</th><th>المسارات</th><th></th>
+    </tr></thead><tbody>
+    ${list.map(f => `<tr>
+      <td><strong>${esc(f.الميسّر)}</strong></td>
+      <td>${esc(f.البريد || "—")}</td>
+      <td>${f.عدد_المسارات
+        ? esc(f.المسارات)
+        : '<span class="badge badge-gray">كل المسارات</span>'}</td>
+      <td><button class="btn btn-outline btn-sm"
+        onclick='openFacTracksModal("${f.facilitator_id}", ${jsArg(f.الميسّر)})'>
+        تحديد المسارات</button></td>
+    </tr>`).join("")}
+    </tbody></table>`;
+}
+
+/* ---------------- تصدير اللجان ---------------- */
+// للمشاركة مع المنظّمين: ملف للعمل، وصفحة للطباعة والتوزيع.
+
+function exportCommitteesCSV(){
+  const list = window._comExport || [];
+  if(!list.length){ showToast("لا لجان للتصدير", true); return; }
+
+  const head = ["اللجنة", "المسار", "المحكّم", "جهة المحكّم",
+                "ترتيب التحكيم", "رقم المشروع", "المشروع"];
+  const rows = [];
+
+  list.forEach(c => {
+    // صف لكل تقاطع محكّم × مشروع — يسهّل الفرز والتصفية في Excel
+    const js = c.judges.length ? c.judges : [{ name: "— بلا أعضاء", org: "" }];
+    const ts = c.teams.length  ? c.teams  : [{ name: "— بلا مشاريع", code: "", order: null }];
+    js.forEach(j => ts.forEach(t => {
+      rows.push([c.name, c.track, j.name, j.org, t.order ?? "", t.code, t.name]);
+    }));
+  });
+
+  // BOM ليقرأ Excel العربية صحيحة
+  const csv = "\ufeff" + [head, ...rows]
+    .map(r => r.map(x => `"${String(x ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\r\n");
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `لجان-التحكيم-${new Date().toLocaleDateString("en-CA")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`صُدّرت ${list.length} لجنة`);
+}
+
+function printCommittees(){
+  const list = window._comExport || [];
+  if(!list.length){ showToast("لا لجان للطباعة", true); return; }
+
+  const total  = list.reduce((a, c) => a + c.teams.length, 0);
+  const judges = list.reduce((a, c) => a + c.judges.length, 0);
+  const today  = new Date().toLocaleDateString("ar-SA",
+    { year: "numeric", month: "long", day: "numeric" });
+
+  const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<title>لجان التحكيم — هاكثون السيرة النبوية</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;margin:0;
+    color:#1B2A3D;line-height:1.7;background:#fff}
+
+  /* ترويسة الهوية */
+  .hd{background:linear-gradient(160deg,#28323C,#00234C);color:#fff;
+    padding:26px 34px 24px;position:relative;overflow:hidden}
+  .hd::after{content:"";position:absolute;width:420px;height:420px;border-radius:50%;
+    top:-260px;inset-inline-start:-140px;
+    background:radial-gradient(circle,rgba(217,164,0,.18),transparent 70%)}
+  .hd-row{display:flex;align-items:center;justify-content:space-between;
+    position:relative;z-index:1;gap:20px}
+  .hd-logos{display:flex;align-items:center;gap:16px;flex-shrink:0}
+  .hd-logos img{height:34px;width:auto;display:block}
+  .hd-logos .sep{width:1px;height:24px;background:rgba(255,255,255,.24)}
+  .hd-brand{width:58px;height:58px;border-radius:14px;overflow:hidden;flex-shrink:0}
+  .hd-brand img{width:100%;height:100%;object-fit:contain;display:block}
+  .hd-t{margin-top:20px;position:relative;z-index:1}
+  .hd-t h1{font-size:23px;font-weight:800;margin:0 0 5px;letter-spacing:-.4px}
+  .hd-t .meta{font-size:12.5px;color:#9FD8DC}
+
+  .wrap{padding:22px 34px 30px}
+
+  /* ملخّص */
+  .sum{width:100%;border-collapse:separate;border-spacing:12px 0;margin-bottom:22px}
+  .sum td{width:33.33%;background:#F7F9FB;border:1px solid #E4E9EF;border-radius:11px;
+    padding:13px 16px;text-align:center}
+  .sum .n{font-size:24px;font-weight:800;color:#28323C;line-height:1.1}
+  .sum .l{font-size:11px;color:#6B7A99;margin-top:3px}
+
+  /* بطاقة اللجنة */
+  .com{margin-bottom:16px;page-break-inside:avoid;break-inside:avoid;
+    border:1px solid #E4E9EF;border-radius:12px;overflow:hidden}
+  .com-h{background:#28323C;color:#fff;padding:11px 18px;
+    display:flex;justify-content:space-between;align-items:center;gap:14px}
+  .com-h .n{font-size:15px;font-weight:700}
+  .com-h .t{font-size:11px;color:#9FD8DC;background:rgba(217,164,0,.16);
+    padding:3px 12px;border-radius:99px;white-space:nowrap}
+  .com-b{width:100%;border-collapse:collapse;table-layout:fixed}
+  .col{width:50%;padding:15px 18px 16px;vertical-align:top}
+  .col:first-child{border-left:1px solid #EEF1F5}
+  .col h3{font-size:10.5px;color:#D9A400;margin:0 0 10px;font-weight:800;
+    letter-spacing:normal;white-space:nowrap;direction:rtl;text-align:right;
+    unicode-bidi:plaintext}
+  .col ul{margin:0;padding:0;list-style:none}
+  .col li{font-size:12.5px;margin:0 0 7px;padding-right:14px;position:relative}
+  .col li::before{content:"";position:absolute;right:0;top:8px;
+    width:5px;height:5px;border-radius:50%;background:#B8860B}
+  .col li .org{color:#6B7A99;font-size:11px}
+  .col li code{font-size:10px;color:#8A6A1E;background:#FBF3E2;
+    padding:2px 7px;border-radius:5px;margin-left:7px;font-family:inherit}
+  .none{color:#A6B4C6;font-size:11.5px;padding-right:0}
+  .col ul.ordered li{padding-right:0}
+  .col ul.ordered li::before{display:none}
+  .col li b.ord{display:inline-block;min-width:19px;height:19px;line-height:19px;
+    text-align:center;background:#28323C;color:#fff;border-radius:5px;
+    font-size:10.5px;font-weight:700;margin-left:8px;margin-inline-end:8px}
+
+
+  @page{margin:12mm}
+  @media print{
+    .hd{padding:20px 26px 18px}
+    .wrap{padding:18px 26px}
+    .com{margin-bottom:12px}
+  }
+</style></head><body>
+
+  <div class="hd">
+    <div class="hd-row">
+      <div class="hd-logos">
+        <img src="${EMAIL_ENFATH_LOGO}" alt="كرسي الشيخ عبدالله بن صالح الراشد الحميد">
+        <span class="sep"></span>
+        <img src="${EMAIL_QASSIM_LOGO}" alt="جامعة القصيم">
+      </div>
+      <div class="hd-brand"><img src="${EMAIL_BRAND_LOGO}" alt="هاكثون السيرة النبوية"></div>
+    </div>
+    <div class="hd-t">
+      <h1>لجان التحكيم</h1>
+      <div class="meta">${today}</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <table class="sum"><tr>
+      <td><div class="n">${list.length}</div><div class="l">لجنة</div></td>
+      <td><div class="n">${judges}</div><div class="l">محكّمًا</div></td>
+      <td><div class="n">${total}</div><div class="l">مشروعًا مسنَدًا</div></td>
+    </tr></table>
+
+    ${list.map(c => `
+      <div class="com">
+        <div class="com-h">
+          <span class="n">${esc(c.name)}</span>
+          <span class="t">${esc(c.track)}</span>
+        </div>
+        <table class="com-b"><tr>
+          <td class="col">
+            <h3>المحكّمون · ${c.judges.length}</h3>
+            ${c.judges.length
+              ? `<ul>${c.judges.map(j => `<li>${esc(j.name)}${
+                  j.org ? `<span class="org"> — ${esc(j.org)}</span>` : ""}</li>`).join("")}</ul>`
+              : `<p class="none">لا أعضاء</p>`}
+          </td>
+          <td class="col">
+            <h3>المشاريع · ${c.teams.length}${
+              c.teams.some(t => t.order) ? " — بترتيب التحكيم" : ""}</h3>
+            ${c.teams.length
+              ? `<ul class="ordered">${c.teams.map(t => `<li>${
+                  t.order ? `<b class="ord">${t.order}</b>` : ""}${
+                  t.code ? `<code>${esc(t.code)}</code>` : ""}${esc(t.name)}</li>`).join("")}</ul>`
+              : `<p class="none">لا مشاريع مسنَدة</p>`}
+          </td>
+        </tr></table>
+      </div>`).join("")}
+  </div>
+
+  <script>window.onload = () => setTimeout(() => window.print(), 600);<\/script>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ showToast("اسمح بالنوافذ المنبثقة للطباعة", true); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+async function openFacTracksModal(userId, name){
+  const { data: current } = await sb.from("facilitator_tracks")
+    .select("track_id").eq("facilitator_user_id", userId);
+  const picked = new Set((current || []).map(x => x.track_id));
+
+  openModal(`
+    <h3>مسارات ${esc(name)}</h3>
+    <p class="hint" style="margin:0 0 14px">
+      اترك الجميع فارغًا ليرى كل المسارات
+    </p>
+    <div class="judge-picker">
+      ${(window._allTracks || []).map(t => `
+        <label class="jp-item">
+          <input type="checkbox" class="ft-track" value="${t.id}" ${picked.has(t.id) ? "checked" : ""}>
+          <span>${esc(t.name_ar)}</span>
+        </label>`).join("") || '<p class="hint">لا مسارات مفعّلة</p>'}
+    </div>
+    <div id="ft-alert" class="alert"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" onclick="saveFacTracks('${userId}')">حفظ</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>`);
+}
+
+async function saveFacTracks(userId){
+  const chosen = [...document.querySelectorAll(".ft-track:checked")].map(x => x.value);
+
+  await sb.from("facilitator_tracks").delete().eq("facilitator_user_id", userId);
+  if(chosen.length){
+    const { error } = await sb.from("facilitator_tracks").insert(
+      chosen.map(t => ({ facilitator_user_id: userId, track_id: t, created_by: currentUser.id }))
+    );
+    if(error){
+      const a = document.getElementById("ft-alert");
+      a.className = "alert alert-error";
+      a.textContent = error.message;
+      return;
+    }
+  }
+
+  logActivity("تحديد مسارات ميسّر", "facilitator_tracks", userId, { tracks: chosen.length });
+  closeModal();
+  showToast(chosen.length ? `أُسنِد ${chosen.length} مسارًا` : "يرى كل المسارات الآن");
+  loadFacilitatorTracks();
+}
+
+async function loadUnconfirmedSessions(){
+  const box = document.getElementById("mb-unconfirmed");
+  if(!box) return;
+
+  const { data, error } = await sb.from("unconfirmed_sessions").select("*").limit(30);
+  if(error){
+    box.innerHTML = `<p class="hint">${esc(error.message)}</p>`;
+    return;
+  }
+  if(!data.length){
+    box.innerHTML = `<div class="alert alert-success">كل الجلسات المنتهية مؤكَّدة</div>`;
+    return;
+  }
+
+  box.innerHTML = `
+    <table class="table"><thead><tr>
+      <th>الموعد</th><th>المرشد</th><th>الفريق</th><th>ملاحظات</th><th></th>
+    </tr></thead><tbody>
+    ${data.map(r => `<tr>
+      <td>${esc(r.الموعد)}</td>
+      <td>${esc(r.المرشد || "—")}</td>
+      <td>${esc(r.الفريق || "—")}
+        ${r.رمز_الفريق ? `<code style="font-size:10.5px;margin-right:5px">${esc(r.رمز_الفريق)}</code>` : ""}</td>
+      <td>${r.لها_ملاحظات ? '<span class="badge badge-green">مكتوبة</span>' : '<span class="badge badge-gray">لا</span>'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="adminConfirmSession('${r.booking_id}')">
+        تأكيد الانعقاد</button></td>
+    </tr>`).join("")}
+    </tbody></table>`;
+}
+
+async function adminConfirmSession(bookingId){
+  const { data, error } = await sb.rpc("confirm_session_held", {
+    p_booking_id: bookingId, p_held: true
+  });
+  if(error || !data?.success){
+    showToast(data?.error || error?.message || "تعذّر التأكيد", true);
+    return;
+  }
+  logActivity("تأكيد انعقاد جلسة إرشاد", "mentor_bookings", bookingId);
+  showToast("أُكّد انعقاد الجلسة");
+  loadUnconfirmedSessions();
+}
+
+async function loadMentorshipHealth(){
+  const box = document.getElementById("mb-health");
+  if(!box) return;
+
+  const { data, error } = await sb.from("mentorship_health").select("*").maybeSingle();
+  if(error || !data){
+    box.innerHTML = `<p class="hint">${esc(error?.message || "تعذّر الفحص")}</p>`;
+    return;
+  }
+
+  const warn = data.فترة_الإرشاد_جارية && data.حاضرون_اليوم === 0;
+
+  box.innerHTML = `
+    <div class="stats-grid">
+      ${statCard(data.إجمالي_المرشدين, "مرشدًا معتمدًا")}
+      ${statCard(data.حاضرون_اليوم, "حاضر اليوم", warn)}
+      ${statCard(data.مواعيد_ظاهرة, "موعدًا ظاهرًا للفرق")}
+      ${statCard(data.فترة_الإرشاد_جارية ? "نعم" : "لا", "فترة الإرشاد جارية")}
+    </div>
+    ${warn ? `<div class="alert alert-error" style="margin-top:12px">
+      فترة الإرشاد جارية ولا مرشد مسجَّل حاضرًا — لن تظهر أي مواعيد للفرق.
+      سجّل الحضور من لوحة الميسّرين.</div>` : ""}`;
+}
+
+async function saveBookingRules(){
+  const alertBox = document.getElementById("mb-alert");
+  const num = id => document.getElementById(id).value.trim();
+
+  const maxDay = parseInt(num("mb-max-day"));
+  const lead   = parseInt(num("mb-lead"));
+  const gap    = parseInt(num("mb-gap"));
+  const opens  = num("mb-opens");
+
+  if([maxDay, lead, gap].some(v => isNaN(v) || v < 0)){
+    alertBox.className = "alert alert-error";
+    alertBox.textContent = "القيم يجب أن تكون أرقامًا موجبة";
+    return;
+  }
+
+  const rows = [
+    { key: "max_bookings_per_day",  value: String(maxDay) },
+    { key: "booking_lead_minutes",  value: String(lead) },
+    { key: "same_mentor_gap_hours", value: String(gap) },
+    { key: "allow_same_mentor_gap", value: gap > 0 ? "1" : "0" },
+    { key: "booking_opens_at",      value: opens ? new Date(opens).toISOString() : "" }
+  ];
+
+  const { error } = await sb.from("platform_settings").upsert(rows, { onConflict: "key" });
+  if(error){
+    alertBox.className = "alert alert-error";
+    alertBox.textContent = "تعذّر الحفظ: " + error.message;
+    return;
+  }
+
+  logActivity("تعديل ضوابط حجز الإرشاد", "platform_settings", null,
+    { max_day: maxDay, lead_minutes: lead, gap_hours: gap });
+
+  alertBox.className = "alert alert-success";
+  alertBox.textContent = "حُفظت الضوابط";
+  setTimeout(() => { alertBox.className = "alert"; alertBox.textContent = ""; }, 3000);
 }
 
 let cachedPrepData = [];
@@ -2968,9 +4007,832 @@ async function saveAnnouncement(id){
   renderAnnouncements();
 }
 
-/* ============================================================
-   6. التحكيم (جولات + معايير)
-   ============================================================ */
+async function renderCommittees(){
+  const body = document.getElementById("judging-body");
+  body.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
+
+  const [coms, judges, tracks, rounds] = await Promise.all([
+    sb.from("judging_committees").select("*, committee_members(id, profiles(id, full_name, organization))").order("name_ar"),
+    sb.from("user_roles").select("user_id, profiles!user_roles_user_id_fkey(id, full_name, organization), roles!inner(key)").eq("roles.key","judge"),
+    sb.from("tracks").select("id,name_ar").eq("is_active", true).order("display_order"),
+    sb.from("judging_rounds").select("id,name_ar").eq("is_active", true).order("round_order")
+  ]);
+
+  if(coms.error){
+    body.innerHTML = `<div class="card"><div class="alert alert-error">${esc(coms.error.message)}</div></div>`;
+    return;
+  }
+
+  window._allJudges = (judges.data || []).map(r => r.profiles).filter(Boolean);
+  window._tracks    = tracks.data || [];
+  window._rounds    = rounds.data || [];
+
+  const list = coms.data || [];
+
+  // مراحل مرقّمة: تشكيل → إسناد → متابعة. الخطوة المكتملة
+  // تُعلَّم، فيعرف المستخدم أين هو وما التالي.
+  const totalJudges  = window._allJudges.length;
+  const inCommittee  = list.reduce((a,c) => a + (c.committee_members||[]).length, 0);
+  const readyComs    = list.filter(c => (c.committee_members||[]).length).length;
+
+  const { data: asg } = await sb.from("judge_assignments")
+    .select("team_id, committee_id, round_id, judging_order, teams(team_name, team_code)");
+  const assignedTeams = new Set((asg||[]).map(a => a.team_id)).size;
+
+  // مشاريع كل لجنة: صف لكل محكّم، فنجمّعها بالفريق.
+  // الإسنادات بلا committee_id من التوزيع القديم — نعرضها
+  // منفصلة بدل تجاهلها، وإلا بدت الصفحة فارغة بلا سبب.
+  const teamsByCommittee = {};
+  const orphanTeams = new Map();
+  (asg || []).forEach(a => {
+    if(a.committee_id){
+      (teamsByCommittee[a.committee_id] ||= new Map())
+        .set(a.team_id, { ...a.teams, order: a.judging_order });
+    } else {
+      orphanTeams.set(a.team_id, a.teams);
+    }
+  });
+
+  // submissions تحوي نسخة لكل حفظ — نعدّ الفرق الفريدة
+  const { data: subs } = await sb.from("submissions").select("team_id");
+  const projectCount = new Set((subs || []).map(x => x.team_id)).size;
+
+  window._orphanTeams = [...orphanTeams.values()];
+
+  // للتصدير: اللجان بأعضائها ومشاريعها
+  window._comExport = list.map(c => ({
+    name: c.name_ar,
+    track: (window._tracks || []).find(t => t.id === c.track_id)?.name_ar || "كل المسارات",
+    judges: (c.committee_members || []).map(m => ({
+      name: m.profiles?.full_name || "—",
+      org:  m.profiles?.organization || ""
+    })),
+    teams: [...(teamsByCommittee[c.id] || new Map()).values()]
+      .sort((a, b) => (a?.order ?? 999) - (b?.order ?? 999))
+      .map(t => ({
+        name:  t?.team_name || "—",
+        code:  t?.team_code || "",
+        order: t?.order || null
+      }))
+  }));
+
+  const step = (n, title, done, desc, actions) => `
+    <div class="jstep ${done ? "done" : ""}">
+      <div class="jstep-num">${done ? "✓" : n}</div>
+      <div class="jstep-body">
+        <div class="jstep-title">${title}</div>
+        <div class="jstep-desc">${desc}</div>
+      </div>
+      <div class="jstep-actions">${actions}</div>
+    </div>`;
+
+  body.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <h3 style="margin:0 0 4px">اللجان وتعيين المحكّمين</h3>
+      <p class="hint" style="margin:0 0 16px">
+        ثلاث خطوات: شكّل اللجان، ثم أسند إليها المشاريع، ثم تابع السير
+      </p>
+
+      ${step(1, "تشكيل اللجان", readyComs > 0,
+        readyComs
+          ? `<bdi>${readyComs}</bdi> لجنة · <bdi>${inCommittee}</bdi> من <bdi>${totalJudges}</bdi> محكّمًا موزّع`
+          : `<bdi>${totalJudges}</bdi> محكّمًا بانتظار التوزيع`,
+        `<button class="btn btn-outline btn-sm" onclick="openFormCommitteesModal()">تشكيل تلقائي</button>
+         <button class="btn btn-outline btn-sm" onclick="openCommitteeModal()">+ لجنة يدويًا</button>
+         ${list.some(c => c.track_id)
+           ? `<button class="btn btn-outline btn-sm" onclick="makeAllGeneral()">جعلها عامة</button>` : ""}
+         ${list.length
+           ? `<button class="btn btn-outline btn-sm" onclick="exportCommitteesCSV()">تصدير Excel</button>
+              <button class="btn btn-outline btn-sm" onclick="printCommittees()">طباعة</button>` : ""}`)}
+
+      ${step(2, "إسناد المشاريع", assignedTeams > 0,
+        assignedTeams
+          ? `<bdi>${assignedTeams}</bdi> من <bdi>${projectCount}</bdi> مشروعًا مسنَد`
+          : `<bdi>${projectCount}</bdi> مشروعًا بانتظار الإسناد`,
+        `<button class="btn ${readyComs ? "btn-primary" : "btn-outline"} btn-sm"
+           ${!readyComs ? "disabled" : ""} onclick="openAssignProjectsModal()">إسناد تلقائي</button>`)}
+
+      ${orphanTeams.size ? `
+        <div class="alert alert-warn" style="margin-top:12px">
+          <bdi>${orphanTeams.size}</bdi> مشروعًا مسنَدًا بالتوزيع القديم (بلا لجنة).
+          التحكيم يعمل عليها، لكنها لا تظهر تحت أي لجنة.
+          <button class="btn btn-outline btn-sm" style="width:auto;margin-top:8px"
+            onclick="showOrphanAssignments()">عرضها</button>
+        </div>` : ""}
+
+      ${step(3, "متابعة التحكيم", false,
+        "حالة كل مشروع ومحكّم، وأين يتعثّر التحكيم",
+        `<button class="btn btn-outline btn-sm" onclick="judgingTab='progress';renderJudging()">
+           فتح سير التحكيم</button>`)}
+    </div>
+
+    ${!list.length
+      ? `<div class="card"><div class="empty-state">
+           لا لجان بعد — ابدأ بـ«تشكيل تلقائي» أعلاه</div></div>`
+      : `<h3 style="margin:18px 0 12px;font-size:16px">اللجان المشكَّلة</h3>
+         ${list.map(c => {
+            const mem = c.committee_members || [];
+            const track = window._tracks.find(t => t.id === c.track_id);
+            return `<div class="card" style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+                <div style="flex:1;min-width:220px">
+                  <h3 style="margin:0 0 4px">${esc(c.name_ar)}
+                    ${!c.is_active ? '<span class="badge badge-gray">معطّلة</span>' : ""}</h3>
+                  <p class="hint" style="margin:0">
+                    ${track ? esc(track.name_ar) : "كل المسارات"} ·
+                    <bdi>${mem.length}</bdi> محكّمًا
+                  </p>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="btn btn-outline btn-sm" onclick='openAssignCommitteeModal("${c.id}", ${jsArg(c.name_ar)})'>إسناد لمشاريع</button>
+                  <button class="btn btn-outline btn-sm" onclick='openCommitteeModal("${c.id}")'>تعديل</button>
+                  <button class="btn btn-danger btn-sm" onclick='deleteCommittee("${c.id}", ${jsArg(c.name_ar)})'>حذف</button>
+                </div>
+              </div>
+              ${(() => {
+                const tm = teamsByCommittee[c.id];
+                if(!tm || !tm.size) return `<p class="hint" style="margin:10px 0 0">
+                  لا مشاريع مسنَدة — استخدم «إسناد لمشاريع»</p>`;
+                // مرتّبة بترتيب التحكيم: هذا جدول القاعة الفعلي
+                const sorted = [...tm.values()].sort((a, b) =>
+                  (a?.order ?? 999) - (b?.order ?? 999));
+                return `<div class="com-teams">
+                  <div class="ct-head">
+                    <i data-lucide="folder-check"></i>
+                    <bdi>${tm.size}</bdi> مشروعًا مسنَدًا — بترتيب التحكيم
+                  </div>
+                  <div class="ct-list">
+                    ${sorted.map(t => `<span class="ct-item">
+                      ${t?.order ? `<b class="ct-ord">${t.order}</b>` : ""}
+                      ${esc(t?.team_name || "—")}
+                      ${t?.team_code ? `<code>${esc(t.team_code)}</code>` : ""}
+                    </span>`).join("")}
+                  </div>
+                </div>`;
+              })()}
+              ${mem.length ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+                ${mem.map(m => `<span class="pill-member">
+                  <span class="nm">${esc(m.profiles?.full_name || "—")}</span>${m.profiles?.organization ? `<span class="org">${esc(m.profiles.organization)}</span>` : ""}
+                </span>`).join("")}
+              </div>` : `<p class="hint" style="margin:10px 0 0">لا أعضاء — أضف محكّمين من «تعديل»</p>`}
+            </div>`;
+          }).join("")}`}
+  `;
+  if(window.lucide) lucide.createIcons();
+}
+
+async function makeAllGeneral(){
+  // اللجنة المرتبطة بمسار لا تحكّم غيره، فيبقى مشروع بلا لجنة.
+  // تحويلها عامة يضمن تغطية كل المسارات.
+  if(!confirm("جعل كل اللجان عامة؟\n\nستحكّم كل المسارات بدل مسار واحد — يضمن ألّا يبقى مشروع بلا لجنة.")) return;
+
+  const { error } = await sb.from("judging_committees")
+    .update({ track_id: null })
+    .not("track_id", "is", null);
+
+  if(error){ showToast(error.message, true); return; }
+  logActivity("تحويل اللجان إلى عامة", "judging_committees", null);
+  showToast("صارت كل اللجان عامة");
+  renderCommittees();
+}
+
+// الإسنادات القديمة: أُنشئت قبل نظام اللجان فلا committee_id لها
+function showOrphanAssignments(){
+  const list = window._orphanTeams || [];
+  openModal(`
+    <h3>مشاريع مسنَدة بلا لجنة</h3>
+    <p class="hint" style="margin:0 0 14px">
+      أُسنِدت بالتوزيع القديم قبل نظام اللجان. التحكيم يعمل عليها بشكل
+      طبيعي — لكنها لا تظهر تحت أي لجنة في الصفحة.
+    </p>
+    <div class="judge-picker">
+      ${list.map(t => `<div class="jp-item">
+        <span>${esc(t?.team_name || "—")}
+          ${t?.team_code ? `<span class="org">${esc(t.team_code)}</span>` : ""}</span>
+      </div>`).join("") || '<p class="hint">لا شيء</p>'}
+    </div>
+    <p class="hint" style="margin:14px 0">
+      لربطها باللجان: استخدم «إسناد تلقائي» مع تفعيل «استبدال الإسنادات القائمة».
+    </p>
+    <button class="btn btn-outline" onclick="closeModal()">إغلاق</button>`);
+}
+
+async function openAssignProjectsModal(){
+  const [coms, teams] = await Promise.all([
+    sb.from("judging_committees").select("id, name_ar, track_id, committee_members(id)"),
+    sb.from("teams").select("id, track_id, status, submissions(id)").eq("status","confirmed")
+  ]);
+
+  const ready = (coms.data || []).filter(c => (c.committee_members||[]).length);
+  const withProject = (teams.data || []).filter(t => (t.submissions||[]).length);
+
+  // لماذا لا تُسنَد كل المشاريع؟ نكشف الأسباب قبل التنفيذ
+  const all = teams.data || [];
+  const blockers = {
+    noProject: all.filter(t => !(t.submissions||[]).length).length,
+    noTrack:   withProject.filter(t => !t.track_id).length,
+  };
+  const comTracks = new Set((coms.data||[]).filter(c => (c.committee_members||[]).length)
+                             .map(c => c.track_id));
+  const hasGeneral = comTracks.has(null);
+  blockers.noCommittee = hasGeneral ? 0
+    : withProject.filter(t => t.track_id && !comTracks.has(t.track_id)).length;
+  const assignable = withProject.length - blockers.noTrack - blockers.noCommittee;
+
+  openModal(`
+    <h3>إسناد المشاريع على اللجان</h3>
+    <p class="hint" style="margin:0 0 14px">
+      تُسنَد مشاريع كل مسار للجان مساره بالتناوب. المسار بلا لجان خاصة
+      يأخذ من اللجان العامة.
+    </p>
+
+    <div class="fit-summary">
+      <div class="fit-row"><span>لجان جاهزة</span>
+        <span class="${ready.length ? "ok" : "no"}"><bdi>${ready.length}</bdi></span></div>
+      <div class="fit-row"><span>مشاريع مقدَّمة</span>
+        <span class="${withProject.length ? "ok" : "no"}"><bdi>${withProject.length}</bdi></span></div>
+      <div class="fit-row"><span>قابلة للإسناد</span>
+        <span class="${assignable > 0 ? "ok" : "no"}"><bdi>${assignable}</bdi></span></div>
+    </div>
+
+    ${(blockers.noProject || blockers.noTrack || blockers.noCommittee) ? `
+      <div class="alert alert-warn" style="margin-bottom:12px;font-size:12.5px">
+        <strong>مشاريع لن تُسنَد:</strong><br>
+        ${blockers.noProject ? `• <bdi>${blockers.noProject}</bdi> فريقًا لم يقدّم مشروعًا<br>` : ""}
+        ${blockers.noTrack ? `• <bdi>${blockers.noTrack}</bdi> فريقًا بلا مسار محدَّد<br>` : ""}
+        ${blockers.noCommittee ? `• <bdi>${blockers.noCommittee}</bdi> فريقًا مساره بلا لجنة — أنشئ لجنة عامة أو للمسار` : ""}
+      </div>` : ""}
+
+    ${!ready.length ? `<div class="alert alert-error" style="margin-bottom:12px">
+      لا لجان بأعضاء — شكّل اللجان أولًا</div>` : ""}
+
+    <div class="field"><label>الجولة *</label>
+      <select id="ap-round">
+        ${(window._rounds||[]).map(r => `<option value="${r.id}">${esc(r.name_ar)}</option>`).join("")}
+      </select></div>
+
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="ap-replace">
+        <span>استبدال الإسنادات القائمة</span>
+      </label>
+      <p class="hint" style="margin-top:4px">
+        ما بدأ تحكيمه يُتخطّى دائمًا ولا يُمسّ
+      </p>
+    </div>
+
+    <div id="ap-alert" class="alert"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" ${!ready.length ? "disabled" : ""}
+        onclick="doAutoAssignProjects()">إسناد</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>`);
+}
+
+async function doAutoAssignProjects(){
+  const alertBox = document.getElementById("ap-alert");
+  const { data, error } = await sb.rpc("auto_assign_projects", {
+    p_round_id: document.getElementById("ap-round").value,
+    p_replace:  document.getElementById("ap-replace").checked
+  });
+
+  if(error || !data?.success){
+    alertBox.className = "alert alert-error";
+    alertBox.textContent = data?.error || error?.message || "تعذّر الإسناد";
+    return;
+  }
+
+  logActivity("إسناد تلقائي للمشاريع", "judge_assignments", null, data);
+  closeModal();
+  showToast(
+    `أُسنِد ${data.projects_assigned} مشروعًا` +
+    (data.skipped_scored ? ` · تُخطّي ${data.skipped_scored} بدأ تحكيمه` : "")
+  );
+  renderCommittees();
+}
+
+async function openFormCommitteesModal(){
+  const { data: fit } = await sb.from("judge_track_fit").select("*");
+  const byTrack = {};
+  (fit || []).forEach(r => {
+    if(!byTrack[r.المسار]) byTrack[r.المسار] = { fit: 0, total: 0 };
+    byTrack[r.المسار].total++;
+    if(r.الملاءمة > 0) byTrack[r.المسار].fit++;
+  });
+
+  openModal(`
+    <h3>تشكيل اللجان تلقائيًا</h3>
+    <p class="hint" style="margin:0 0 14px">
+      يوزّع المحكّمين على لجان متوازنة، ويراعي ملاءمة تخصص كل محكّم للمسار.
+      كل محكّم في لجنة واحدة فقط — اللجان تجتمع بالتزامن.
+    </p>
+
+    ${Object.keys(byTrack).length ? `
+      <div class="fit-summary">
+        ${Object.entries(byTrack).map(([t, v]) => `
+          <div class="fit-row">
+            <span>${esc(t)}</span>
+            <span class="${v.fit ? "ok" : "no"}">
+              <bdi>${v.fit}</bdi> من <bdi>${v.total}</bdi> محكّمًا مناسب
+            </span>
+          </div>`).join("")}
+      </div>` : ""}
+
+    <div class="field"><label>عدد المحكّمين في اللجنة</label>
+      <select id="fc-size">
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select></div>
+
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="fc-per-track">
+        <span>لجنة لكل مسار (يراعي التخصص)</span>
+      </label>
+      <p class="hint" style="margin-top:4px">
+        <strong>موصى به الآن:</strong> اتركها فارغة لتُشكَّل لجان عامة تحكّم كل المسارات —
+        فلا يبقى مشروع بلا لجنة. فعّلها لاحقًا حين تكتمل بيانات التخصصات.
+      </p>
+    </div>
+
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="fc-clear">
+        <span>حذف اللجان الحالية التي لم تُسنَد لمشاريع</span>
+      </label>
+    </div>
+
+    <div id="fc-alert" class="alert"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="doFormCommittees()">تشكيل</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>`);
+}
+
+async function doFormCommittees(){
+  const alertBox = document.getElementById("fc-alert");
+  const { data, error } = await sb.rpc("auto_form_committees", {
+    p_size: parseInt(document.getElementById("fc-size").value),
+    p_per_track: document.getElementById("fc-per-track").checked,
+    p_clear_existing: document.getElementById("fc-clear").checked
+  });
+
+  if(error || !data?.success){
+    alertBox.className = "alert alert-error";
+    alertBox.textContent = data?.error || error?.message || "تعذّر التشكيل";
+    return;
+  }
+
+  logActivity("تشكيل لجان تلقائيًا", "judging_committees", null, data);
+  closeModal();
+  showToast(`شُكّلت ${data.committees_created} لجنة`);
+  renderCommittees();
+}
+
+async function openCommitteeModal(id){
+  let c = { name_ar:"", description:"", track_id:"", is_active:true, committee_members:[] };
+  if(id){
+    const { data } = await sb.from("judging_committees")
+      .select("*, committee_members(judge_user_id)").eq("id", id).maybeSingle();
+    if(data) c = data;
+  }
+  const picked = new Set((c.committee_members||[]).map(m => m.judge_user_id));
+
+  openModal(`
+    <h3>${id ? "تعديل اللجنة" : "لجنة جديدة"}</h3>
+    <div class="field"><label>اسم اللجنة *</label>
+      <input id="cm-name" value="${esc(c.name_ar||"")}"></div>
+    <div class="field"><label>المسار</label>
+      <select id="cm-track">
+        <option value="">كل المسارات</option>
+        ${(window._tracks||[]).map(t => `<option value="${t.id}" ${c.track_id===t.id?"selected":""}>${esc(t.name_ar)}</option>`).join("")}
+      </select></div>
+    <div class="field"><label>وصف (اختياري)</label>
+      <input id="cm-desc" value="${esc(c.description||"")}"></div>
+
+    <div class="field"><label>أعضاء اللجنة</label>
+      <div class="judge-picker">
+        ${(window._allJudges||[]).map(j => `
+          <label class="jp-item">
+            <input type="checkbox" class="cm-judge" value="${j.id}" ${picked.has(j.id)?"checked":""}>
+            <span>${esc(j.full_name)}
+              ${j.organization ? `<span class="org">${esc(j.organization)}</span>` : ""}</span>
+          </label>`).join("") || '<p class="hint">لا محكّمون معتمدون بعد</p>'}
+      </div>
+    </div>
+
+    <div id="cm-alert" class="alert"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveCommittee('${id||""}')">حفظ</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>`);
+}
+
+async function saveCommittee(id){
+  const alertBox = document.getElementById("cm-alert");
+  const name = document.getElementById("cm-name").value.trim();
+  if(!name){
+    alertBox.className = "alert alert-error";
+    alertBox.textContent = "اسم اللجنة مطلوب";
+    return;
+  }
+  const payload = {
+    name_ar: name,
+    description: document.getElementById("cm-desc").value.trim() || null,
+    track_id: document.getElementById("cm-track").value || null
+  };
+
+  let cid = id;
+  if(id){
+    const { error } = await sb.from("judging_committees").update(payload).eq("id", id);
+    if(error){ alertBox.className="alert alert-error"; alertBox.textContent = error.message; return; }
+  } else {
+    payload.created_by = currentUser.id;
+    const { data, error } = await sb.from("judging_committees").insert(payload).select("id").single();
+    if(error){ alertBox.className="alert alert-error"; alertBox.textContent = error.message; return; }
+    cid = data.id;
+  }
+
+  // نحذف من خرج فقط ونضيف من دخل. الاستبدال الكامل كان يحذف
+  // الجميع ثم يعيدهم — فيُزيل المُشغّل إسنادات من بقي أيضًا.
+  const chosen = [...document.querySelectorAll(".cm-judge:checked")].map(x => x.value);
+
+  const { data: current } = await sb.from("committee_members")
+    .select("judge_user_id").eq("committee_id", cid);
+  const before = new Set((current || []).map(x => x.judge_user_id));
+  const after  = new Set(chosen);
+
+  const removed = [...before].filter(j => !after.has(j));
+  const added   = [...after].filter(j => !before.has(j));
+
+  if(removed.length){
+    await sb.from("committee_members").delete()
+      .eq("committee_id", cid).in("judge_user_id", removed);
+  }
+  if(added.length){
+    const { error: e2 } = await sb.from("committee_members").insert(
+      added.map(j => ({ committee_id: cid, judge_user_id: j }))
+    );
+    if(e2){
+      alertBox.className = "alert alert-error";
+      alertBox.textContent = e2.message.includes("judge_unique")
+        ? "أحد المحكّمين في لجنة أخرى — المحكّم في لجنة واحدة فقط"
+        : e2.message;
+      return;
+    }
+  }
+
+  logActivity(id ? "تعديل لجنة تحكيم" : "إنشاء لجنة تحكيم", "judging_committees", cid, { name });
+  closeModal();
+  showToast("حُفظت اللجنة");
+  renderCommittees();
+}
+
+async function deleteCommittee(id, name){
+  // الحذف يزيل الإسنادات معها — وإلا بقيت المشاريع في حسابات
+  // المحكّمين بلا لجنة
+  if(!confirm(`حذف لجنة «${name}»؟\n\nستُزال إسناداتها من حسابات محكّميها.\nوإن كان التحكيم قد بدأ، سيُرفض الحذف.`)) return;
+  const { error } = await sb.from("judging_committees").delete().eq("id", id);
+  if(error){
+    // رسالة المُشغّل مفهومة — نعرضها كما هي
+    alert(error.message.replace(/^.*?:\s*/, ""));
+    return;
+  }
+  logActivity("حذف لجنة تحكيم", "judging_committees", id, { name });
+  showToast("حُذفت اللجنة");
+  renderCommittees();
+}
+
+async function openAssignCommitteeModal(committeeId, name){
+  const { data: teams } = await sb.from("teams")
+    .select("id, team_name, team_code, track_id, submissions(id)")
+    .eq("status","confirmed").order("team_name");
+
+  const withProject = (teams||[]).filter(t => (t.submissions||[]).length);
+
+  openModal(`
+    <h3>إسناد «${esc(name)}» لمشاريع</h3>
+    <p class="hint" style="margin:0 0 14px">تُنشأ إسنادات لكل محكّم في اللجنة</p>
+
+    <div class="field"><label>الجولة *</label>
+      <select id="ac-round">
+        ${(window._rounds||[]).map(r => `<option value="${r.id}">${esc(r.name_ar)}</option>`).join("")}
+      </select></div>
+
+    <div class="field"><label>المشاريع</label>
+      <div class="judge-picker">
+        ${withProject.length
+          ? withProject.map(t => `<label class="jp-item">
+              <input type="checkbox" class="ac-team" value="${t.id}">
+              <span>${esc(t.team_name)}
+                ${t.team_code ? `<span class="org">${esc(t.team_code)}</span>` : ""}</span>
+            </label>`).join("")
+          : '<p class="hint">لا مشاريع مقدَّمة بعد</p>'}
+      </div>
+    </div>
+
+    <div id="ac-alert" class="alert"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="doAssignCommittee('${committeeId}')">إسناد</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>`);
+}
+
+async function doAssignCommittee(committeeId){
+  const alertBox = document.getElementById("ac-alert");
+  const roundId = document.getElementById("ac-round").value;
+  const teams = [...document.querySelectorAll(".ac-team:checked")].map(x => x.value);
+
+  if(!roundId || !teams.length){
+    alertBox.className = "alert alert-error";
+    alertBox.textContent = "اختر الجولة ومشروعًا واحدًا على الأقل";
+    return;
+  }
+
+  let ok = 0, replaced = 0;
+  const fail = [];
+  for(const t of teams){
+    const { data, error } = await sb.rpc("assign_committee_to_team", {
+      p_committee_id: committeeId, p_team_id: t, p_round_id: roundId
+    });
+    if(error || !data?.success){
+      fail.push(data?.error || error?.message || "خطأ غير معروف");
+    } else {
+      ok++;
+      if(data.replaced) replaced++;
+    }
+  }
+
+  if(fail.length){
+    // نعرض الأسباب بدل إخفائها — الرفض له سبب يهم المستخدم
+    alertBox.className = "alert alert-warn";
+    alertBox.innerHTML = `<strong>أُسنِد ${ok} · تعذّر ${fail.length}</strong><br>` +
+      fail.map(f => `• ${esc(f)}`).join("<br>");
+    logActivity("إسناد لجنة لمشاريع", "judging_committees", committeeId, { teams: ok, failed: fail.length });
+    renderCommittees();
+    return;
+  }
+
+  logActivity("إسناد لجنة لمشاريع", "judging_committees", committeeId, { teams: ok });
+  closeModal();
+  showToast(replaced
+    ? `أُسنِدت اللجنة لـ${ok} مشروعًا (${replaced} استبدال)`
+    : `أُسنِدت اللجنة لـ${ok} مشروعًا`);
+  renderCommittees();
+}
+
+
+
+
+/* ---------------- سير التحكيم ---------------- */
+// تقرير يكشف أين يتعثّر التحكيم: مشروع بلا إسناد، أو محكّم
+// لم يبدأ، أو تقييم جزئي.
+
+/* ---------------- فلاتر سير التحكيم ---------------- */
+// فلتر واحد يخدم الجدولين: المشاريع والأعباء.
+
+/* ---------------- ترتيب المشاريع ---------------- */
+// الترتيب تلقائي برقم المشروع، وهذا يعدّله يدويًا مع إزاحة
+// ما بينهما.
+
+async function changeOrder(teamId, roundId, newPos, oldPos){
+  const n = parseInt(newPos, 10);
+  if(!n || n === oldPos){ renderJudgingProgress(); return; }
+
+  const { data, error } = await sb.rpc("set_judging_order", {
+    p_team_id: teamId, p_round_id: roundId, p_new_pos: n
+  });
+
+  if(error || !data?.success){
+    showToast(data?.error || error?.message || "تعذّر التعديل", true);
+    renderJudgingProgress();
+    return;
+  }
+  logActivity("تعديل ترتيب التحكيم", "judge_assignments", teamId, { from: oldPos, to: n });
+  showToast(`نُقل من ${oldPos} إلى ${n}`);
+  renderJudgingProgress();
+}
+
+async function renumberAllOrders(){
+  if(!confirm("إعادة الترقيم تلقائيًا برقم المشروع؟\n\nسيُلغى أي ترتيب يدوي.")) return;
+  const { data, error } = await sb.rpc("renumber_committee_order",
+    { p_committee_id: null, p_round_id: null });
+  if(error || !data?.success){
+    showToast(data?.error || error?.message || "تعذّر الترقيم", true); return;
+  }
+  showToast(`رُقّم ${data.updated} مشروعًا`);
+  renderJudgingProgress();
+}
+
+function fillJudgingFilters(){
+  const rows = window._progRows || [];
+  const coms = [...new Set(rows.map(r => r.اللجنة).filter(Boolean))].sort();
+  const trks = [...new Set(rows.map(r => r.المسار).filter(Boolean))].sort();
+
+  const setOpts = (id, list) => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    const cur = el.value;
+    el.innerHTML = `<option value="">الكل</option>` +
+      list.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+    if(list.includes(cur)) el.value = cur;
+  };
+  setOpts("jf-committee", coms);
+  setOpts("jf-track", trks);
+}
+
+function filterJudgingViews(){
+  const val = id => document.getElementById(id)?.value || "";
+  const term = val("jf-search").trim().toLowerCase();
+  const com  = val("jf-committee"), trk = val("jf-track"), stt = val("jf-status");
+
+  // ── المشاريع ──
+  const rows = (window._progRows || []).filter(r => {
+    if(com && r.اللجنة !== com) return false;
+    if(trk && r.المسار !== trk) return false;
+    if(stt && r.الحالة !== stt) return false;
+    if(!term) return true;
+    return (r.الفريق || "").toLowerCase().includes(term)
+        || (r.المشروع || "").toLowerCase().includes(term)
+        || (r.رمز_الفريق || "").toLowerCase().includes(term);
+  });
+
+  const cls = h => h === "مكتمل" ? "badge-green"
+                 : h === "جزئي"  ? "badge-gold"
+                 : h === "لم يبدأ" ? "badge-gray" : "badge-red";
+
+  const jp = document.getElementById("jp-body");
+  if(jp){
+    jp.innerHTML = rows.length ? rows.map(r => `<tr>
+      <td style="text-align:center">
+        ${r.اللجنة && r.الترتيب
+          ? `<input class="ord-in" type="number" min="1" value="${r.الترتيب}"
+               onchange="changeOrder('${r.team_id}','${r.round_id}',this.value,${r.الترتيب})">`
+          : "—"}</td>
+      <td><strong>${esc(r.الفريق)}</strong>
+        ${r.رمز_الفريق ? `<code style="font-size:10.5px;margin-right:5px">${esc(r.رمز_الفريق)}</code>` : ""}</td>
+      <td>${esc(r.المشروع || "—")}</td>
+      <td>${esc(r.المسار || "—")}</td>
+      <td>${esc(r.اللجنة || "—")}</td>
+      <td><bdi>${r.محكّمون_قيّموا ?? 0}</bdi> من <bdi>${r.محكّمون_مسنَدون ?? 0}</bdi></td>
+      <td><span class="badge ${cls(r.الحالة)}">${esc(r.الحالة)}</span></td>
+      <td>${r.متوسط_الدرجة ?? "—"}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:22px">
+         لا مشاريع مطابقة</td></tr>`;
+  }
+
+  const cnt = document.getElementById("jf-count");
+  if(cnt) cnt.textContent = rows.length === (window._progRows||[]).length
+    ? `(${rows.length})` : `(${rows.length} من ${(window._progRows||[]).length})`;
+
+  // ── الأعباء: تُفلتر بالبحث واللجنة ──
+  const load = (window._loadRows || []).filter(j => {
+    if(com && !(j.اللجان || "").includes(com)) return false;
+    if(!term) return true;
+    return (j.المحكّم || "").toLowerCase().includes(term)
+        || (j.الجهة || "").toLowerCase().includes(term)
+        || (j.اللجان || "").toLowerCase().includes(term);
+  });
+
+  const jw = document.getElementById("jw-body");
+  if(jw){
+    jw.innerHTML = load.length ? load.map(j => `<tr>
+      <td><strong>${esc(j.المحكّم)}</strong></td>
+      <td>${esc(j.الجهة || "—")}</td>
+      <td>${esc(j.اللجان || "—")}</td>
+      <td><bdi>${j.مشاريع_مسنَدة ?? 0}</bdi></td>
+      <td><bdi>${j.مشاريع_قيّمها ?? 0}</bdi></td>
+      <td>${j.متبقية > 0 ? `<strong style="color:var(--gold)"><bdi>${j.متبقية}</bdi></strong>` : "—"}</td>
+      <td><span class="badge ${j.الحالة === "أنهى" ? "badge-green"
+            : j.الحالة === "جارٍ" ? "badge-gold" : "badge-gray"}">${esc(j.الحالة)}</span></td>
+    </tr>`).join("")
+    : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:22px">
+         لا محكّمين مطابقين</td></tr>`;
+  }
+}
+
+async function renderJudgingProgress(){
+  const body = document.getElementById("judging-body");
+  body.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
+
+  const [prog, load] = await Promise.all([
+    sb.from("judging_progress").select("*"),
+    sb.from("judge_workload").select("*").eq("round_active", true)
+  ]);
+
+  if(prog.error){
+    body.innerHTML = `<div class="card"><div class="alert alert-error">${esc(prog.error.message)}</div></div>`;
+    return;
+  }
+  // خطأ الأعباء كان يُبتلع، فيظهر الجدول فارغًا بلا سبب
+  window._loadErr = load.error?.message || null;
+
+  window._progRows = prog.data || [];
+  window._loadRows = load.data || [];
+  const rows = window._progRows;
+  const by = k => rows.filter(r => r.الحالة === k).length;
+  const done = by("مكتمل"), part = by("جزئي"), none = by("لم يبدأ"), unass = by("لم يُسنَد");
+  const pct = rows.length ? Math.round(done / rows.length * 100) : 0;
+
+  const cls = h => h === "مكتمل" ? "badge-green"
+                 : h === "جزئي"  ? "badge-gold"
+                 : h === "لم يبدأ" ? "badge-gray" : "badge-red";
+
+  body.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:14px">
+      ${statCard(pct + "%", "نسبة الإنجاز")}
+      ${statCard(done, "مكتمل")}
+      ${statCard(part, "جزئي", part > 0)}
+      ${statCard(unass, "لم يُسنَد", unass > 0)}
+    </div>
+
+    ${unass > 0 ? `<div class="alert alert-error" style="margin-bottom:14px">
+      <bdi>${unass}</bdi> مشروعًا بلا محكّمين — أسند لجنة قبل بدء التحكيم</div>` : ""}
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="jf-bar">
+        <div class="field" style="margin:0;flex:1;min-width:180px">
+          <label>بحث بالفريق أو المشروع أو المحكّم</label>
+          <input id="jf-search" placeholder="اكتب للبحث..." oninput="filterJudgingViews()">
+        </div>
+        <div class="field" style="margin:0;min-width:170px">
+          <label>اللجنة</label>
+          <select id="jf-committee" onchange="filterJudgingViews()"><option value="">الكل</option></select>
+        </div>
+        <div class="field" style="margin:0;min-width:160px">
+          <label>المسار</label>
+          <select id="jf-track" onchange="filterJudgingViews()"><option value="">الكل</option></select>
+        </div>
+        <div class="field" style="margin:0;min-width:150px">
+          <label>الحالة</label>
+          <select id="jf-status" onchange="filterJudgingViews()">
+            <option value="">الكل</option>
+            <option value="لم يُسنَد">لم يُسنَد</option>
+            <option value="لم يبدأ">لم يبدأ</option>
+            <option value="جزئي">جزئي</option>
+            <option value="مكتمل">مكتمل</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;
+                  flex-wrap:wrap;gap:10px;margin:16px 0 12px">
+        <h3 style="margin:0">حالة المشاريع <span class="hint" id="jf-count"></span></h3>
+        <button class="btn btn-outline btn-sm" style="width:auto"
+          onclick="renumberAllOrders()">إعادة الترقيم تلقائيًا</button>
+      </div>
+      <table class="table"><thead><tr>
+        <th>الفريق</th><th>المشروع</th><th>المسار</th><th>اللجنة</th>
+        <th>التقدّم</th><th>الحالة</th><th>المتوسط</th>
+      </tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td><strong>${esc(r.الفريق)}</strong>
+          ${r.رمز_الفريق ? `<code style="font-size:10.5px;margin-right:5px">${esc(r.رمز_الفريق)}</code>` : ""}</td>
+        <td>${esc(r.المشروع || "—")}</td>
+        <td>${esc(r.المسار || "—")}</td>
+        <td>${esc(r.اللجنة || "—")}</td>
+        <td><bdi>${r.محكّمون_قيّموا ?? 0}</bdi> من <bdi>${r.محكّمون_مسنَدون ?? 0}</bdi></td>
+        <td><span class="badge ${cls(r.الحالة)}">${esc(r.الحالة)}</span>
+          ${r.فيه_تعارض ? ' <span class="badge badge-gold">تعارض</span>' : ""}</td>
+        <td>${r.متوسط_الدرجة ?? "—"}</td>
+      </tr>`).join("")}
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 12px">أعباء المحكّمين</h3>
+      ${window._loadErr
+        ? `<div class="alert alert-error">تعذّر تحميل الأعباء: ${esc(window._loadErr)}</div>`
+        : !(load.data || []).length
+          ? `<div class="alert alert-warn">لا محكّمين نشطين — تأكد من إسناد دور «محكّم» وتفعيل الحسابات</div>`
+          : ""}
+      <p class="hint" style="margin:0 0 12px">
+        المشروع الذي قيّمه محكّم لا يظهر لمن يحلّ محلّه. لإعادة تقييمه،
+        احذف الدرجات أولًا من تبويب موجز التحكيم.
+      </p>
+      <table class="table"><thead><tr>
+        <th>المحكّم</th><th>الجهة</th><th>اللجان</th>
+        <th>مسنَدة</th><th>قيّمها</th><th>متبقية</th><th>الحالة</th>
+      </tr></thead><tbody id="jw-body">
+      ${(load.data || []).map(j => `<tr>
+        <td><strong>${esc(j.المحكّم)}</strong></td>
+        <td>${esc(j.الجهة || "—")}</td>
+        <td>${esc(j.اللجان || "—")}</td>
+        <td><bdi>${j.مشاريع_مسنَدة ?? 0}</bdi></td>
+        <td><bdi>${j.مشاريع_قيّمها ?? 0}</bdi></td>
+        <td>${j.متبقية > 0 ? `<strong style="color:var(--gold)"><bdi>${j.متبقية}</bdi></strong>` : "—"}</td>
+        <td><span class="badge ${j.الحالة === "أنهى" ? "badge-green" : j.الحالة === "جارٍ" ? "badge-gold" : "badge-gray"}">
+          ${esc(j.الحالة)}</span></td>
+      </tr>`).join("")}
+      </tbody></table>
+    </div>`;
+  fillJudgingFilters();
+  filterJudgingViews();
+  if(window.lucide) lucide.createIcons();
+}
+
 let judgingTab = "rounds";
 async function renderJudging(){
   const main = document.getElementById("main-content");
@@ -2985,9 +4847,13 @@ async function renderJudging(){
     ${judgingWindowNote}
     <div class="tabs" id="judging-tabs">
       <div class="tab ${judgingTab==='rounds'?'active':''}" data-t="rounds">الجولات والمعايير</div>
-      <div class="tab ${judgingTab==='assignments'?'active':''}" data-t="assignments">تعيين المحكّمين</div>
+      <div class="tab ${judgingTab==='committees'?'active':''}" data-t="committees">اللجان والتعيين</div>
       <div class="tab ${judgingTab==='judges'?'active':''}" data-t="judges">المحكّمون</div>
       <div class="tab ${judgingTab==='results'?'active':''}" data-t="results">النتائج المجمّعة</div>
+      <div class="tab ${judgingTab==='progress'?'active':''}" data-t="progress">سير التحكيم</div>
+      <div class="tab ${judgingTab==='summary'?'active':''}" data-t="summary">موجز التحكيم</div>
+      <div class="tab ${judgingTab==='workload'?'active':''}" data-t="workload">أعباء المحكّمين</div>
+      <div class="tab ${judgingTab==='rankings'?'active':''}" data-t="rankings">المراكز والإعلان</div>
     </div>
     <div id="judging-body"></div>`;
 
@@ -2998,9 +4864,15 @@ async function renderJudging(){
     renderJudging();
   });
 
-  if(judgingTab === "rounds") renderJudgingRounds();
+  if(judgingTab === "committees") renderCommittees();
+  else if(judgingTab === "assignments") renderCommittees();
+  else if(judgingTab === "progress") renderJudgingProgress();
+  else if(judgingTab === "rounds") renderJudgingRounds();
   else if(judgingTab === "assignments") renderJudgingAssignments();
   else if(judgingTab === "judges") renderJudgesManagement();
+  else if(judgingTab === "summary") renderJudgingSummary();
+  else if(judgingTab === "workload") renderJudgeWorkload();
+  else if(judgingTab === "rankings") renderRankings();
   else renderJudgingResults();
 }
 
@@ -3157,11 +5029,17 @@ async function renderJudgingAssignments(){
   }
   if(!judgeAssignSelectedRound) judgeAssignSelectedRound = rounds.find(r=>r.is_active)?.id || rounds[0].id;
 
+  const curRound = rounds.find(r => r.id === judgeAssignSelectedRound) || rounds[0];
   body.innerHTML = `<div class="card">
-    <div class="field" style="margin-bottom:0"><label>الجولة</label>
-      <select id="assign-round-select" onchange="changeAssignRound(this.value)">
-        ${rounds.map(r => `<option value="${r.id}" ${r.id===judgeAssignSelectedRound?"selected":""}>${esc(r.name_ar)}</option>`).join("")}
-      </select>
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="margin:0;flex:1;min-width:220px"><label>الجولة</label>
+        <select id="assign-round-select" onchange="changeAssignRound(this.value)">
+          ${rounds.map(r => `<option value="${r.id}" ${r.id===judgeAssignSelectedRound?"selected":""}>${esc(r.name_ar)}</option>`).join("")}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="auto-assign-btn" onclick='openAutoAssignModal("${curRound.id}", ${jsArg(curRound.name_ar)})'>
+        توزيع تلقائي متوازن
+      </button>
     </div>
   </div>
   <div class="card">
@@ -3182,6 +5060,19 @@ async function renderJudgingAssignments(){
 function changeAssignRound(id){
   judgeAssignSelectedRound = id;
   loadJudgingAssignmentsList();
+  // زر التوزيع يحمل معرّف الجولة في onclick، فلا يكفي تحديث
+  // القائمة — لا بد من إعادة بنائه، وإلا وزّع على الجولة القديمة
+  syncAutoAssignButton();
+}
+
+// نحدّث الزر في مكانه بلا إعادة رسم الصفحة (حفاظًا على الفلاتر)
+function syncAutoAssignButton(){
+  const btn = document.getElementById("auto-assign-btn");
+  const sel = document.getElementById("assign-round-select");
+  if(!btn || !sel) return;
+  const name = sel.options[sel.selectedIndex]?.text || "";
+  btn.setAttribute("onclick",
+    `openAutoAssignModal('${sel.value}', ${JSON.stringify(name)})`);
 }
 let cachedAssignTeams = [], cachedAssignments = [];
 function filterJudgingAssignments(){
@@ -3440,7 +5331,7 @@ async function moveCriteriaOrder(roundId, criteriaId, direction){
 function openRoundModal(){
   openModal(`
     <h3>إضافة جولة تحكيم</h3>
-    <div class="field"><label>اسم الجولة</label><input id="f-round-name" placeholder="مثال: التصفية الأولية"></div>
+    <div class="field"><label>اسم الجولة</label><input id="f-round-name" placeholder=""></div>
     <div class="field"><label>الترتيب</label><input type="number" id="f-round-order" value="1"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
@@ -3464,7 +5355,7 @@ async function toggleRoundActive(id, value){
   renderJudgingRounds();
 }
 async function togglePublishResults(id, value){
-  if(value && !confirm("نشر النتائج راح يخلي كل فريق يشوف درجاته والتغذية الراجعة من المحكّمين. متأكد؟")) return;
+  if(value && !confirm("نشر النتائج يتيح لكل فريق الاطّلاع على درجاته والملاحظات من المحكّمين. متأكد؟")) return;
   const { error } = await sb.from("judging_rounds").update({results_published:value}).eq("id", id);
   if(error) return showToast("خطأ: " + error.message, true);
   logActivity(value ? "نشر نتائج جولة تحكيم" : "إخفاء نتائج جولة تحكيم", "judging_round", id);
@@ -3473,30 +5364,59 @@ async function togglePublishResults(id, value){
 }
 function openCriteriaModal(roundId, c=null){
   const isEdit = !!c;
-  c = c || {name_ar:"",description:"",weight:25,max_score:10};
+  c = c || {name_ar:"",description:"",weight:25,max_score:5};
   openModal(`
     <h3>${isEdit ? "تعديل معيار" : "إضافة معيار تقييم"}</h3>
-    <div class="field"><label>اسم المعيار</label><input id="f-crit-name" value="${esc(c.name_ar)}" placeholder="مثال: الابتكار وجدة الفكرة"></div>
+    <div class="field"><label>اسم المعيار</label><input id="f-crit-name" value="${esc(c.name_ar)}" placeholder=""></div>
     <div class="field"><label>وصف المعيار (يظهر للمحكّم كشرح توضيحي)</label>
-      <textarea id="f-crit-desc" rows="3" placeholder="مثال: مدى تميّز الفكرة عن الحلول الموجودة حاليًا بالسوق، وقدرتها على تقديم قيمة مختلفة فعليًا">${esc(c.description||"")}</textarea>
+      <textarea id="f-crit-desc" rows="3" placeholder="">${esc(c.description||"")}</textarea>
       <p class="hint" style="margin-top:4px">اختياري، لكن موصى به بشدة — يوحّد فهم كل المحكّمين لنفس المعيار</p>
     </div>
     <div class="form-row-2">
       <div class="field"><label>الوزن (%)</label><input type="number" id="f-crit-weight" value="${c.weight}"></div>
-      <div class="field"><label>أقصى درجة</label><input type="number" id="f-crit-max" value="${c.max_score}"></div>
+      <div class="field"><label>أقصى درجة</label><input type="number" id="f-crit-max" min="1" max="10" value="${c.max_score}">
+        <p class="hint" style="margin-top:4px">المقياس المعتمد للبرنامج: 5</p>
+      </div>
     </div>
+    <div id="crit-scored-warning" style="margin-top:2px"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
-      <button class="btn btn-primary" onclick="saveCriteria('${roundId}','${c.id||""}')">حفظ</button>
+      <button class="btn btn-primary" onclick="saveCriteria('${roundId}','${c.id||""}', ${c.max_score})">حفظ</button>
     </div>
   `);
+
+  // تنبيه مبكر: معيار عليه درجات مُدخلة فعلًا — تغيير سقفه يمسّ التحكيم
+  if(isEdit && c.id) flagScoredCriteria(c.id);
 }
-async function saveCriteria(roundId, id){
+
+async function flagScoredCriteria(criteriaId){
+  const { count } = await sb.from("scores").select("id", {count:"exact", head:true}).eq("criteria_id", criteriaId);
+  const box = document.getElementById("crit-scored-warning");
+  if(!box || !count) return;
+  box.innerHTML = `<div class="alert" style="font-size:12.5px">هذا المعيار عليه <strong>${count}</strong> درجة مُدخلة. تغيير "أقصى درجة" لن يُعيد احتساب الدرجات القائمة، وأي درجة أعلى من السقف الجديد سترفضها قاعدة البيانات عند أول تعديل.</div>`;
+}
+
+async function saveCriteria(roundId, id, oldMax){
   const name_ar = document.getElementById("f-crit-name").value.trim();
   const description = document.getElementById("f-crit-desc").value.trim();
   const weight = parseFloat(document.getElementById("f-crit-weight").value) || 1;
-  const max_score = parseInt(document.getElementById("f-crit-max").value) || 10;
+  const max_score = parseInt(document.getElementById("f-crit-max").value) || 5;
   if(!name_ar){ showToast("اسم المعيار مطلوب", true); return; }
+  if(max_score < 1){ showToast("أقصى درجة لازم تكون 1 فأكثر", true); return; }
+
+  // خفض السقف على معيار مُقيَّم: تأكيد صريح قبل المتابعة
+  if(id && oldMax && max_score < oldMax){
+    const { count } = await sb.from("scores").select("id", {count:"exact", head:true}).eq("criteria_id", id);
+    if(count){
+      const over = await sb.from("scores").select("id", {count:"exact", head:true}).eq("criteria_id", id).gt("score", max_score);
+      const overCount = over.count || 0;
+      const msg = overCount
+        ? `تحذير: ${overCount} من أصل ${count} درجة مُدخلة تتجاوز السقف الجديد (${max_score}). ستبقى كما هي بالقاعدة لكنها ستظهر خارج النطاق بواجهة المحكّم. متابعة؟`
+        : `هذا المعيار عليه ${count} درجة مُدخلة. متأكد من خفض السقف إلى ${max_score}؟`;
+      if(!confirm(msg)) return;
+    }
+  }
+
   const payload = { name_ar, description: description || null, weight, max_score };
 
   let q;
@@ -3509,6 +5429,7 @@ async function saveCriteria(roundId, id){
   }
   const { error } = await q;
   if(error) return showToast("خطأ: " + error.message, true);
+  if(id && oldMax && max_score !== oldMax) logActivity("تغيير سقف معيار تحكيم", "criteria", id, {name: name_ar, from: oldMax, to: max_score});
   showToast(id ? "تم التحديث" : "تمت الإضافة");
   closeModal();
   renderJudgingRounds();
@@ -3586,6 +5507,737 @@ async function renderJudgingConsistencyCheck(){
     </div>
   `;
   if(window.lucide) lucide.createIcons();
+}
+
+/* ============================================================
+   6-ب. موجز التحكيم — الاعتماد الفردي والجماعي + الحذف المُدقَّق
+   ============================================================ */
+let summaryRows = [];
+let summarySelected = new Set();
+let summaryRoundFilter = "";
+let summaryStatusFilter = "";
+
+async function renderJudgingSummary(){
+  const body = document.getElementById("judging-body");
+  body.innerHTML = `<div id="summary-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px"></div>
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="margin:0;min-width:190px"><label>الجولة</label>
+          <select id="summary-round-filter" onchange="applySummaryFilters()"><option value="">كل الجولات</option></select>
+        </div>
+        <div class="field" style="margin:0;align-self:flex-end">
+          <button class="btn btn-outline btn-sm" onclick="exportResultsExcel()">تصدير النتائج Excel</button>
+        </div>
+        <div class="field" style="margin:0;min-width:190px"><label>حالة الاعتماد</label>
+          <select id="summary-status-filter" onchange="applySummaryFilters()">
+            <option value="">الكل</option>
+            <option value="approved">معتمدة</option>
+            <option value="pending">غير معتمدة</option>
+            <option value="incomplete">تحكيم ناقص</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="summary-bulk-bar"></div>
+    <div class="card"><div id="summary-table">${skeletonRows(5)}</div></div>`;
+
+  const { data, error } = await sb.from("judging_summary").select("*").order("round_order").order("weighted_average", {ascending:false, nullsFirst:false});
+  if(error){
+    document.getElementById("summary-table").innerHTML = `<div class="empty-state">خطأ: ${esc(error.message)}<br><span class="hint">تأكد من تطبيق ملف 69_judging_approvals.sql</span></div>`;
+    return;
+  }
+  summaryRows = data || [];
+  summarySelected.clear();
+
+  // تعبئة فلتر الجولات من البيانات نفسها
+  const rounds = [...new Map(summaryRows.map(r => [r.round_id, r.round_name])).entries()];
+  const sel = document.getElementById("summary-round-filter");
+  rounds.forEach(([id, name]) => sel.insertAdjacentHTML("beforeend", `<option value="${id}">${esc(name)}</option>`));
+  sel.value = summaryRoundFilter;
+  document.getElementById("summary-status-filter").value = summaryStatusFilter;
+
+  drawSummaryStats();
+  drawSummaryTable();
+}
+
+function summaryFiltered(){
+  return summaryRows.filter(r => {
+    if(summaryRoundFilter && r.round_id !== summaryRoundFilter) return false;
+    const incomplete = (r.submitted_judges||0) < (r.assigned_judges||0);
+    if(summaryStatusFilter === "approved")   return r.approval_status === "approved";
+    if(summaryStatusFilter === "pending")    return r.approval_status !== "approved";
+    if(summaryStatusFilter === "incomplete") return incomplete;
+    return true;
+  });
+}
+
+function applySummaryFilters(){
+  summaryRoundFilter  = document.getElementById("summary-round-filter").value;
+  summaryStatusFilter = document.getElementById("summary-status-filter").value;
+  summarySelected.clear();
+  drawSummaryTable();
+}
+
+function drawSummaryStats(){
+  const box = document.getElementById("summary-stats");
+  if(!box) return;
+  const total      = summaryRows.length;
+  const approved   = summaryRows.filter(r => r.approval_status === "approved").length;
+  const incomplete = summaryRows.filter(r => (r.submitted_judges||0) < (r.assigned_judges||0)).length;
+  const scored     = summaryRows.filter(r => r.weighted_average !== null);
+  const avg        = scored.length ? (scored.reduce((a,r)=>a+Number(r.weighted_average),0)/scored.length) : null;
+  box.innerHTML = `
+    ${statCard(total, "نتائج (فريق × جولة)")}
+    ${statCard(approved, "معتمدة")}
+    ${statCard(incomplete, "تحكيم ناقص")}
+    ${statCard(avg !== null ? avg.toFixed(2) : "—", "متوسط عام")}
+  `;
+}
+
+function drawSummaryTable(){
+  const box = document.getElementById("summary-table");
+  if(!box) return;
+  const rows = summaryFiltered();
+
+  if(!rows.length){
+    box.innerHTML = `<div class="empty-state">لا توجد نتائج بهذه الفلاتر</div>`;
+    drawSummaryBulkBar();
+    return;
+  }
+
+  box.innerHTML = `<table><thead><tr>
+      <th style="width:34px"><input type="checkbox" id="summary-check-all" onchange="toggleAllSummary(this.checked)"></th>
+      <th>الفريق</th><th>المسار</th><th>الجولة</th><th>التحكيم</th><th>المعدل</th><th>التفاوت</th><th>الاعتماد</th><th></th>
+    </tr></thead><tbody>
+    ${rows.map(r => {
+      const key = `${r.team_id}|${r.round_id}`;
+      const submitted = r.submitted_judges || 0;
+      const assigned  = r.assigned_judges || 0;
+      const incomplete = submitted < assigned;
+      const isApproved = r.approval_status === "approved";
+      const spread = r.judges_spread !== null ? Number(r.judges_spread) : null;
+      return `<tr${isApproved ? ` style="background:rgba(16,185,129,.05)"` : ""}>
+        <td><input type="checkbox" class="summary-check" data-key="${key}" ${summarySelected.has(key)?"checked":""} onchange="toggleSummaryRow('${key}', this.checked)"></td>
+        <td><strong>${esc(r.team_name)}</strong></td>
+        <td>${esc(r.track_name||"—")}</td>
+        <td>${esc(r.round_name)}</td>
+        <td>${submitted} / ${assigned}${incomplete ? ` <span class="badge badge-gold">ناقص</span>` : ""}</td>
+        <td><strong>${r.weighted_average !== null ? Number(r.weighted_average).toFixed(2) : "—"}</strong></td>
+        <td>${spread !== null ? (spread > 1.2 ? `<span class="badge badge-gold">${spread.toFixed(2)}</span>` : spread.toFixed(2)) : "—"}</td>
+        <td>${isApproved
+              ? `<span class="badge badge-green">معتمدة</span>`
+              : `<span class="badge badge-gray">غير معتمدة</span>`}</td>
+        <td class="row-actions">
+          <button class="btn btn-outline btn-sm" onclick='openSummaryDetail("${r.team_id}","${r.round_id}", ${jsArg(r.team_name)})'>تفاصيل</button>
+          ${isApproved
+            ? `<button class="btn btn-outline btn-sm" onclick='unapproveResults("${r.team_id}","${r.round_id}", ${jsArg(r.team_name)})'>إلغاء الاعتماد</button>`
+            : `<button class="btn btn-primary btn-sm" onclick='approveResults(["${key}"])'>اعتماد</button>`}
+        </td>
+      </tr>`;
+    }).join("")}
+    </tbody></table>`;
+  drawSummaryBulkBar();
+}
+
+function toggleSummaryRow(key, checked){
+  checked ? summarySelected.add(key) : summarySelected.delete(key);
+  drawSummaryBulkBar();
+}
+function toggleAllSummary(checked){
+  summaryFiltered().forEach(r => {
+    const key = `${r.team_id}|${r.round_id}`;
+    checked ? summarySelected.add(key) : summarySelected.delete(key);
+  });
+  document.querySelectorAll(".summary-check").forEach(c => c.checked = checked);
+  drawSummaryBulkBar();
+}
+function drawSummaryBulkBar(){
+  const box = document.getElementById("summary-bulk-bar");
+  if(!box) return;
+  const n = summarySelected.size;
+  if(!n){ box.innerHTML = ""; return; }
+  const keys = [...summarySelected];
+  const pendingCount = keys.filter(k => {
+    const r = summaryRows.find(x => `${x.team_id}|${x.round_id}` === k);
+    return r && r.approval_status !== "approved";
+  }).length;
+  box.innerHTML = `<div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:600">محدَّد: ${n}${pendingCount !== n ? ` <span style="color:var(--muted);font-weight:400">(${pendingCount} غير معتمدة)</span>` : ""}</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="clearSummarySelection()">إلغاء التحديد</button>
+        <button class="btn btn-primary btn-sm" onclick='approveResults(${jsArg(keys)})' ${pendingCount?"":"disabled"}>اعتماد المحدد (${pendingCount})</button>
+      </div>
+    </div>`;
+}
+function clearSummarySelection(){
+  summarySelected.clear();
+  document.querySelectorAll(".summary-check").forEach(c => c.checked = false);
+  const all = document.getElementById("summary-check-all");
+  if(all) all.checked = false;
+  drawSummaryBulkBar();
+}
+
+/* ---- الاعتماد ---- */
+async function approveResults(keys){
+  const targets = keys
+    .map(k => summaryRows.find(x => `${x.team_id}|${x.round_id}` === k))
+    .filter(r => r && r.approval_status !== "approved");
+
+  if(!targets.length){ showToast("كل المحدد معتمد مسبقًا", true); return; }
+
+  // المنع الحقيقي بالقاعدة (ملف 95)؛ وهذا لرسالة واضحة قبل المحاولة
+  const empty = targets.filter(r => r.weighted_average === null);
+  if(empty.length){
+    openModal(`
+      <h3 style="color:var(--danger)">لا يمكن الاعتماد</h3>
+      <div class="alert" style="display:block;background:#fdf5f4;color:var(--danger);font-size:13px">
+        ${empty.length === targets.length
+          ? "النتائج المحددة بلا أي درجات مُدخلة."
+          : `${empty.length} من ${targets.length} نتيجة بلا أي درجات مُدخلة.`}
+        <br><br>اعتماد نتيجة لم يُقيّمها أحد لا معنى له — انتظر حتى يُدخل المحكّمون درجاتهم.
+      </div>
+      <div style="margin-top:12px;font-size:12.5px">
+        <strong>الفرق المتأثرة:</strong><br>
+        ${empty.slice(0,8).map(r => esc(r.team_name)).join(" · ")}${empty.length>8 ? ` … و${empty.length-8} غيرها` : ""}
+      </div>
+      ${empty.length < targets.length ? `<div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick='approveResults(${jsArg(
+          targets.filter(r => r.weighted_average !== null).map(r => `${r.team_id}|${r.round_id}`)
+        )})'>اعتماد المكتملة فقط (${targets.length - empty.length})</button>
+      </div>` : `<div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">إغلاق</button>
+      </div>`}
+    `);
+    return;
+  }
+
+  const incomplete = targets.filter(r => (r.submitted_judges||0) < (r.assigned_judges||0));
+
+  let override = null;
+  if(incomplete.length){
+    override = prompt(
+      `${incomplete.length} نتيجة تحكيمها غير مكتمل (لم يسلّم كل المحكّمين).\n\n` +
+      `للاعتماد رغم ذلك اكتب سبب التجاوز — سيُسجَّل مع الاعتماد:`);
+    if(override === null) return;
+    if(!override.trim()){ showToast("سبب التجاوز إلزامي", true); return; }
+  }
+
+  const msg = `اعتماد ${targets.length} نتيجة؟\n\n` +
+    `بعد الاعتماد لن يتمكن المحكّمون من تعديل درجاتهم لهذه الفرق.`;
+  if(!confirm(msg)) return;
+
+  const payload = targets.map(r => ({
+    team_id: r.team_id,
+    round_id: r.round_id,
+    status: "approved",
+    approved_by: currentUser?.id || null,
+    approved_at: new Date().toISOString(),
+    override_reason: override ? override.trim() : null
+  }));
+
+  const { error } = await sb.from("judging_approvals").upsert(payload, { onConflict: "team_id,round_id" });
+  if(error){
+    showToast("رُفض الاعتماد: " + error.message, true);
+    return;
+  }
+
+  logActivity("اعتماد نتائج تحكيم", "judging", null, {
+    count: targets.length,
+    teams: targets.map(r => r.team_name),
+    incomplete: incomplete.length,
+    override_reason: override || null
+  });
+  showToast(`تم اعتماد ${targets.length} نتيجة`);
+  clearSummarySelection();
+  renderJudgingSummary();
+}
+
+async function unapproveResults(teamId, roundId, teamName){
+  if(!confirm(`إلغاء اعتماد نتيجة ${teamName}؟ سيتمكّن المحكّمون من تعديل درجاتهم مرة أخرى.`)) return;
+  const { error } = await sb.from("judging_approvals").delete().eq("team_id", teamId).eq("round_id", roundId);
+  if(error) return showToast("خطأ: " + error.message, true);
+  logActivity("إلغاء اعتماد نتيجة", "judging", teamId, {team: teamName});
+  showToast("تم إلغاء الاعتماد");
+  renderJudgingSummary();
+}
+
+/* ---- التفاصيل + حذف تقييم محكّم ---- */
+async function openSummaryDetail(teamId, roundId, teamName){
+  openModal(`<h3>تفاصيل تحكيم ${esc(teamName)}</h3>
+    <div id="summary-detail-body" style="max-height:420px;overflow-y:auto">${skeletonRows(3)}</div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">إغلاق</button></div>`);
+
+  const [scoresRes, critRes] = await Promise.all([
+    sb.from("scores").select("judge_user_id, criteria_id, score, comments, submitted_at, profiles!scores_judge_user_id_fkey(full_name)")
+      .eq("team_id", teamId).eq("round_id", roundId),
+    sb.from("judging_criteria").select("id, name_ar, weight, max_score").eq("round_id", roundId).order("display_order")
+  ]);
+
+  const box = document.getElementById("summary-detail-body");
+  if(!box) return;
+  const scores = scoresRes.data || [];
+  const crit   = critRes.data || [];
+
+  if(!scores.length){ box.innerHTML = `<div class="empty-state">لم يسلّم أي محكّم تقييمه بعد</div>`; return; }
+
+  // تجميع حسب المحكّم
+  const byJudge = {};
+  scores.forEach(s => {
+    if(!byJudge[s.judge_user_id]) byJudge[s.judge_user_id] = { name: s.profiles?.full_name || "محكّم", rows: {}, comments: "", at: s.submitted_at };
+    byJudge[s.judge_user_id].rows[s.criteria_id] = s.score;
+    if(s.comments) byJudge[s.judge_user_id].comments = s.comments;
+  });
+
+  const row = summaryRows.find(r => r.team_id === teamId && r.round_id === roundId);
+  const isApproved = row?.approval_status === "approved";
+
+  box.innerHTML = Object.entries(byJudge).map(([jid, j]) => {
+    let sw = 0, ww = 0;
+    crit.forEach(c => { const v = j.rows[c.id]; if(v !== undefined){ sw += Number(v) * Number(c.weight); ww += Number(c.weight); } });
+    const avg = ww ? (sw/ww) : null;
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div><strong style="font-size:13.5px">${esc(j.name)}</strong>
+          <span style="color:var(--muted);font-size:11.5px"> · ${fmtDate(j.at)}</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge badge-green">${avg !== null ? avg.toFixed(2) : "—"}</span>
+          ${isApproved ? "" : `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick='openDeleteEvaluationModal("${jid}","${teamId}","${roundId}", ${jsArg(j.name)}, ${jsArg(teamName)})'>حذف التقييم</button>`}
+        </div>
+      </div>
+      <table style="font-size:12.5px"><tbody>
+        ${crit.map(c => `<tr><td>${esc(c.name_ar)} <span style="color:var(--muted)">(${c.weight}%)</span></td>
+          <td style="text-align:left;font-weight:700">${j.rows[c.id] !== undefined ? `${j.rows[c.id]} / ${c.max_score}` : "—"}</td></tr>`).join("")}
+      </tbody></table>
+      ${j.comments ? `<p class="hint" style="margin-top:8px">${esc(j.comments)}</p>` : ""}
+    </div>`;
+  }).join("") + (isApproved ? `<div class="alert" style="font-size:12.5px">النتيجة معتمدة — ألغِ الاعتماد أولًا لتتمكن من حذف أي تقييم.</div>` : "");
+}
+
+function openDeleteEvaluationModal(judgeId, teamId, roundId, judgeName, teamName){
+  openModal(`<h3>حذف تقييم محكّم</h3>
+    <p class="hint" style="margin:-8px 0 14px">${esc(judgeName)} — فريق ${esc(teamName)}</p>
+    <div class="alert" style="font-size:12.5px">سيُحذف تقييم هذا المحكّم لهذا الفريق بالكامل ليتمكن من إعادة إدخاله. تُحفظ نسخة مؤرشفة من الدرجات الأصلية للتدقيق.</div>
+    <div class="field"><label>سبب الحذف <span style="color:var(--danger)">*</span></label>
+      <textarea id="del-eval-reason" rows="3" placeholder=""></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-danger" onclick='confirmDeleteEvaluation("${judgeId}","${teamId}","${roundId}", ${jsArg(judgeName)}, ${jsArg(teamName)})'>حذف</button>
+    </div>`);
+}
+
+async function confirmDeleteEvaluation(judgeId, teamId, roundId, judgeName, teamName){
+  const reason = document.getElementById("del-eval-reason").value.trim();
+  if(!reason){ showToast("سبب الحذف إلزامي", true); return; }
+
+  const { data, error } = await sb.rpc("admin_delete_judge_evaluation", {
+    p_judge_id: judgeId, p_team_id: teamId, p_round_id: roundId, p_reason: reason
+  });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+
+  logActivity("حذف تقييم محكّم", "judging", teamId, { judge: judgeName, team: teamName, reason, deleted_rows: data.deleted_count });
+  showToast(`تم حذف تقييم ${judgeName}`);
+  closeModal();
+  renderJudgingSummary();
+}
+
+/* ============================================================
+   أعباء المحكّمين — من هو المحكّم وكم أُسند له وأين وصل
+   ============================================================ */
+let workloadRound = "";
+
+async function renderJudgeWorkload(){
+  const body = document.getElementById("judging-body");
+  body.innerHTML = `<div class="card">${skeletonRows(5)}</div>`;
+
+  const [wlRes, rndRes] = await Promise.all([
+    sb.from("judge_workload").select("*"),
+    sb.from("judging_rounds").select("id, name_ar, round_order").order("round_order")
+  ]);
+
+  if(wlRes.error){
+    body.innerHTML = `<div class="card"><div class="empty-state">
+      تعذّر التحميل — تأكد من تطبيق ملف 91<br>
+      <span class="hint">${esc(wlRes.error.message)}</span></div></div>`;
+    return;
+  }
+
+  const rounds = rndRes.data || [];
+  if(!workloadRound && rounds.length) workloadRound = rounds[0].id;
+  const rows = (wlRes.data||[]).filter(r => !workloadRound || r.round_id === workloadRound);
+
+  const active   = rows.filter(r => r.assigned_teams > 0);
+  const idle     = rows.filter(r => r.assigned_teams === 0);
+  const totalAsg = active.reduce((a,r) => a + Number(r.assigned_teams||0), 0);
+  const totalDone= active.reduce((a,r) => a + Number(r.scored_teams||0), 0);
+
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+      ${statCard(active.length, "محكّمون مُسنَد لهم")}
+      ${statCard(idle.length, "بلا إسناد")}
+      ${statCard(totalAsg, "إجمالي الإسنادات")}
+      ${statCard(totalAsg ? Math.round(totalDone/totalAsg*100)+"%" : "—", "نسبة الإنجاز")}
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="field" style="margin:0;max-width:280px"><label>الجولة</label>
+        <select onchange="workloadRound=this.value; renderJudgeWorkload()">
+          ${rounds.map(r => `<option value="${r.id}" ${r.id===workloadRound?"selected":""}>${esc(r.name_ar)}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:auto">
+      ${rows.length ? `<table style="margin:0"><thead><tr>
+          <th>المحكّم</th><th>التخصص</th><th>الجهة</th>
+          <th style="text-align:center">مُسنَد</th>
+          <th style="text-align:center">قُيّم</th>
+          <th style="min-width:150px">التقدّم</th>
+          <th style="text-align:center">متوسط درجاته</th>
+          <th>آخر نشاط</th>
+        </tr></thead><tbody>
+        ${rows.sort((a,b) => (b.assigned_teams||0)-(a.assigned_teams||0)).map(r => {
+          const pct = Number(r.progress_pct || 0);
+          const col = pct >= 100 ? "var(--teal)" : pct >= 50 ? "var(--gold)" : "var(--danger)";
+          return `<tr${r.is_active === false ? ' style="opacity:.55"' : ""}>
+            <td><strong>${esc(r.judge_name||"—")}</strong>
+              ${r.is_active === false ? ' <span class="badge badge-gray">معطّل</span>' : ""}
+              ${Number(r.conflict_teams) > 0 ? ` <span class="badge badge-gold" title="فرق عليها تعارض مصالح">${r.conflict_teams} تعارض</span>` : ""}
+              <br><span style="font-size:11.5px;color:var(--muted)">${esc(r.email||"")}</span></td>
+            <td style="font-size:12.5px">${esc(r.specialization||"—")}</td>
+            <td style="font-size:12.5px;color:var(--muted)">${esc(r.organization||"—")}</td>
+            <td style="text-align:center"><strong>${r.assigned_teams||0}</strong></td>
+            <td style="text-align:center">${r.scored_teams||0}</td>
+            <td>
+              <div style="height:7px;background:var(--border-light);border-radius:5px;overflow:hidden">
+                <div style="width:${Math.min(pct,100)}%;height:100%;background:${col}"></div>
+              </div>
+              <span style="font-size:11px;color:var(--muted)">${pct}%</span>
+            </td>
+            <td style="text-align:center">${r.avg_score !== null && r.avg_score !== undefined ? Number(r.avg_score).toFixed(2) : "—"}</td>
+            <td style="font-size:11.5px;color:var(--muted)">${r.last_activity ? fmtDate(r.last_activity) : "—"}</td>
+          </tr>`;
+        }).join("")}
+        </tbody></table>` : `<div style="padding:20px">${emptyIllustration("users","لا يوجد محكّمون","أضف محكّمين من تبويب إدارة المحكّمين")}</div>`}
+    </div>
+
+    <p class="hint" style="margin-top:12px">
+      «متوسط درجاته» يكشف المحكّم المتشدّد أو المتساهل مقارنةً بزملائه.
+      و«التعارض» يعني فرقًا استُبعد منها.
+    </p>`;
+}
+
+/* ---------------- التوزيع التلقائي ---------------- */
+function openAutoAssignModal(roundId, roundName){
+  openModal(`
+    <h3>توزيع تلقائي متوازن</h3>
+    <p class="hint" style="margin:-8px 0 14px">${esc(roundName)}</p>
+    <div class="field">
+      <label>عدد المحكّمين لكل مشروع</label>
+      <input type="number" id="f-auto-per" value="3" min="1" max="10">
+    </div>
+    <div class="alert" style="font-size:12.5px">
+      يوزّع المشاريع بالتساوي، ويحترم الإسنادات القائمة فلا يلمسها،
+      ويُعلّم تعارض المصالح تلقائيًا حين يكون المحكّم من جهة أحد أعضاء الفريق.
+    </div>
+    <div id="auto-assign-preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-outline" onclick='runAutoAssign("${roundId}", true)'>معاينة</button>
+      <button class="btn btn-primary" onclick='runAutoAssign("${roundId}", false)'>تنفيذ</button>
+    </div>
+  `);
+}
+
+async function runAutoAssign(roundId, dryRun){
+  const per = parseInt(document.getElementById("f-auto-per").value) || 3;
+  const box = document.getElementById("auto-assign-preview");
+  box.innerHTML = `<div style="padding:10px 0">${skeletonRows(2)}</div>`;
+
+  const { data, error } = await sb.rpc("auto_assign_judges", {
+    p_round_id: roundId, p_judges_per_team: per, p_dry_run: dryRun
+  });
+
+  if(error){ box.innerHTML = `<div class="alert error" style="display:block">${esc(error.message)}</div>`; return; }
+
+  const rows = data || [];
+  if(!rows.length){
+    box.innerHTML = `<div class="alert" style="display:block;font-size:12.5px">لا توجد إسنادات جديدة — كل المشاريع مكتملة</div>`;
+    return;
+  }
+
+  const conflicts = rows.filter(r => (r.الحالة||"").includes("تعارض")).length;
+
+  box.innerHTML = `<div style="margin-top:12px;max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">
+      <table style="margin:0;font-size:12.5px"><thead><tr><th>الفريق</th><th>المحكّم</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${esc(r.الفريق)}</td><td>${esc(r.المحكّم)}</td>
+        <td style="font-size:11.5px">${esc(r.الحالة)}</td>
+      </tr>`).join("")}</tbody></table>
+    </div>
+    <p class="hint" style="margin-top:8px">${rows.length} إسنادًا${conflicts ? ` · ${conflicts} عليها تعارض مصالح` : ""}</p>`;
+
+  if(!dryRun){
+    logActivity("توزيع تلقائي للمحكّمين", "judging", roundId, { count: rows.length, per });
+    showToast(`أُسند ${rows.length} تكليفًا`);
+    setTimeout(() => { closeModal(); renderJudgingAssignments(); }, 1200);
+  }
+}
+
+/* ---------------- تصدير النتائج ---------------- */
+async function exportResultsExcel(){
+  showToast("جاري التحضير...");
+
+  const [detRes, rankRes, wlRes] = await Promise.all([
+    sb.from("results_export").select("*"),
+    sb.from("final_rankings").select("*").order("round_order").order("track_name").order("rank_in_track"),
+    sb.from("judge_workload").select("*")
+  ]);
+
+  if(detRes.error){ showToast("خطأ: " + detRes.error.message, true); return; }
+  const data = detRes.data || [];
+  if(!data.length){ showToast("لا توجد نتائج للتصدير", true); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  /* ---- 0. الغلاف ---- */
+  // SheetJS المجاني لا يدرج صورًا، فالغلاف نصّي منسَّق
+  const now = new Date();
+  const stampAr = now.toLocaleDateString("ar-SA-u-nu-latn", {year:"numeric", month:"long", day:"2-digit"});
+  const roundsSeen = [...new Set((rankRes.data || []).map(r => r.round_name))].filter(Boolean);
+  const cover = [
+    ["هاكثون السيرة النبوية"],
+    ["Prophetic Seerah Hackathon"],
+    [""],
+    ["تقرير نتائج التحكيم"],
+    [""],
+    ["الجهة المنظِّمة", "جامعة القصيم"],
+    ["الشريك", "إنفاذ"],
+    [""],
+    ["تاريخ التصدير", stampAr],
+    ["الجولات المشمولة", roundsSeen.join(" · ") || "—"],
+    ["عدد الفرق", new Set(data.map(r => r.الفريق)).size],
+    ["عدد المحكّمين", new Set(data.map(r => r.المحكّم)).size],
+    ["عدد التقييمات", data.length],
+    [""],
+    ["محتويات الملف"],
+    ["الترتيب النهائي", "المركز والنتيجة وحالة الاعتماد"],
+    ["مصفوفة المحكّمين", "صف لكل فريق وعمود لكل محكّم"],
+    ["متوسط المعايير", "متوسط كل معيار لكل فريق"],
+    ["أداء المحكّمين", "العبء والإنجاز ومتوسط الدرجات"],
+    ["التفصيل الكامل", "كل درجة على حدة"],
+    [""],
+    ["وثيقة داخلية — لا تُنشر قبل اعتماد النتائج وإعلانها رسميًا"]
+  ];
+  const wsCover = XLSX.utils.aoa_to_sheet(cover);
+  wsCover["!cols"] = [{wch:26},{wch:52}];
+  wsCover["!merges"] = [
+    {s:{r:0,c:0},e:{r:0,c:1}}, {s:{r:1,c:0},e:{r:1,c:1}},
+    {s:{r:3,c:0},e:{r:3,c:1}}, {s:{r:14,c:0},e:{r:14,c:1}},
+    {s:{r:21,c:0},e:{r:21,c:1}}
+  ];
+  XLSX.utils.book_append_sheet(wb, wsCover, "الغلاف");
+
+  /* ---- 1. الترتيب النهائي: الورقة الأهم للمراجعة ---- */
+  const ranks = (rankRes.data || []).map(r => ({
+    الجولة: r.round_name,
+    المسار: r.track_name || "—",
+    المركز: r.rank_in_track ?? "",
+    الفريق: r.team_name,
+    المشروع: r.project_title || "—",
+    النتيجة_النهائية: r.final_score !== null ? Number(r.final_score) : null,
+    عدد_المحكمين: r.judges_count,
+    التفاوت: r.spread !== null ? Number(r.spread) : null,
+    تقييم_جزئي: r.has_partial ? "نعم" : "",
+    الاعتماد: r.approval_status === "approved" ? "معتمدة" : "غير معتمدة",
+    المركز_العام: r.rank_overall ?? ""
+  }));
+  if(ranks.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ranks), "الترتيب النهائي");
+
+  /* ---- 2. مصفوفة: صف لكل فريق وعمود لكل محكّم ---- */
+  // تكشف بنظرة أي محكّم شذّ عن زملائه
+  const cell = {};      // فريق|محكّم -> معدله
+  const judges = new Set();
+  const teams = {};
+  data.forEach(r => {
+    const tk = r.الجولة + "|" + r.الفريق;
+    teams[tk] = teams[tk] || { الجولة: r.الجولة, المسار: r.المسار, الفريق: r.الفريق };
+    judges.add(r.المحكّم);
+    const ck = tk + "|" + r.المحكّم;
+    cell[ck] = cell[ck] || { sw: 0, w: 0 };
+    cell[ck].sw += Number(r.الدرجة) * Number(r.الوزن);
+    cell[ck].w  += Number(r.الوزن);
+  });
+  const judgeList = [...judges].sort();
+  const matrix = Object.entries(teams).map(([tk, t]) => {
+    const row = { الجولة: t.الجولة, المسار: t.المسار, الفريق: t.الفريق };
+    let sum = 0, n = 0;
+    judgeList.forEach(j => {
+      const c = cell[tk + "|" + j];
+      const v = c && c.w ? Math.round(c.sw / c.w * 100) / 100 : null;
+      row[j] = v;
+      if(v !== null){ sum += v; n++; }
+    });
+    row["المعدل"] = n ? Math.round(sum / n * 100) / 100 : null;
+    return row;
+  }).sort((a,b) => (b.المعدل||0) - (a.المعدل||0));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(matrix), "مصفوفة المحكّمين");
+
+  /* ---- 3. متوسط كل معيار لكل فريق ---- */
+  // يكشف نقاط القوة والضعف بين المشاريع
+  const byCrit = {};
+  const critNames = new Set();
+  data.forEach(r => {
+    const tk = r.الجولة + "|" + r.الفريق;
+    byCrit[tk] = byCrit[tk] || { الجولة: r.الجولة, المسار: r.المسار, الفريق: r.الفريق, _c: {} };
+    critNames.add(r.المعيار);
+    const c = byCrit[tk]._c;
+    c[r.المعيار] = c[r.المعيار] || { sum: 0, n: 0, w: r.الوزن };
+    c[r.المعيار].sum += Number(r.الدرجة);
+    c[r.المعيار].n++;
+  });
+  const critList = [...critNames];
+  const critRows = Object.values(byCrit).map(t => {
+    const row = { الجولة: t.الجولة, المسار: t.المسار, الفريق: t.الفريق };
+    critList.forEach(cn => {
+      const c = t._c[cn];
+      row[cn] = c ? Math.round(c.sum / c.n * 100) / 100 : null;
+    });
+    return row;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(critRows), "متوسط المعايير");
+
+  /* ---- 4. أداء المحكّمين ---- */
+  const wl = (wlRes.data || []).filter(r => r.assigned_teams > 0).map(r => ({
+    المحكّم: r.judge_name,
+    البريد: r.email,
+    التخصص: r.specialization || "—",
+    الجهة: r.organization || "—",
+    الجولة: r.round_name,
+    مُسنَد: r.assigned_teams,
+    قُيّم: r.scored_teams,
+    نسبة_الإنجاز: r.progress_pct,
+    متوسط_درجاته: r.avg_score !== null ? Number(r.avg_score) : null
+  }));
+  if(wl.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wl), "أداء المحكّمين");
+
+  /* ---- 5. التفصيل الكامل ---- */
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "التفصيل الكامل");
+
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `نتائج-التحكيم-${stamp}.xlsx`);
+  logActivity("تصدير نتائج التحكيم", "judging", null, { rows: data.length, sheets: wb.SheetNames.length });
+  showToast(`صُدِّرت ${wb.SheetNames.length} أوراق`);
+}
+
+/* ============================================================
+   المراكز والإعلان
+   ============================================================ */
+async function renderRankings(){
+  const body = document.getElementById("judging-body");
+  body.innerHTML = `<div class="card">${skeletonRows(5)}</div>`;
+
+  const [rkRes, pubRes] = await Promise.all([
+    sb.from("final_rankings").select("*").order("round_order").order("track_name").order("rank_in_track"),
+    sb.from("platform_settings").select("value").eq("key","rankings_published").maybeSingle()
+  ]);
+
+  if(rkRes.error){
+    body.innerHTML = `<div class="card"><div class="empty-state">
+      تعذّر التحميل — تأكد من تطبيق ملف 96<br>
+      <span class="hint">${esc(rkRes.error.message)}</span></div></div>`;
+    return;
+  }
+
+  const rows = rkRes.data || [];
+  const published = pubRes?.data?.value === "true";
+  const approved = rows.filter(r => r.approval_status === "approved");
+  const partial  = rows.filter(r => r.has_partial);
+
+  body.innerHTML = `
+    <div class="card" style="margin-bottom:16px;background:${published ? "#e6f7f3" : "#fef3e2"};border-color:${published ? "#a8e0d4" : "#f0d9a8"}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <div>
+          <strong style="font-size:14px">${published ? "النتائج معلنة للمشاركين" : "النتائج غير معلنة"}</strong>
+          <p class="hint" style="margin:5px 0 0">
+            ${published
+              ? "صفحة النتائج تعرض المراكز الآن. رابطها: /results.html"
+              : "المشاركون لا يرون المراكز حتى تُعلنها. الاعتماد وحده لا يكفي."}
+          </p>
+        </div>
+        <button class="btn ${published ? "btn-outline" : "btn-primary"}" onclick="togglePublishRankings(${!published})">
+          ${published ? "إخفاء النتائج" : "إعلان النتائج"}
+        </button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+      ${statCard(rows.length, "فرق لها نتائج")}
+      ${statCard(approved.length, "معتمَدة")}
+      ${statCard(rows.length - approved.length, "بانتظار الاعتماد")}
+      ${statCard(partial.length, "تقييم جزئي")}
+    </div>
+
+    ${partial.length ? `<div class="alert" style="display:block;background:#fef3e2;color:#92600a;font-size:12.5px;margin-bottom:14px">
+      ⚠️ ${partial.length} نتيجة فيها محكّم لم يقيّم كل المعايير. النتيجة تُحسب بمتوسط معدلات المحكّمين فلا تتأثر، لكن راجعها قبل الإعلان.
+    </div>` : ""}
+
+    <div class="card" style="padding:0;overflow:auto">
+      ${rows.length ? `<table style="margin:0"><thead><tr>
+        <th style="width:60px;text-align:center">المركز</th>
+        <th>الفريق</th><th>المسار</th><th>المشروع</th>
+        <th style="text-align:center">النتيجة</th>
+        <th style="text-align:center">محكّمون</th>
+        <th style="text-align:center">التفاوت</th>
+        <th>الاعتماد</th>
+      </tr></thead><tbody>
+        ${rows.map(r => {
+          const rank = r.rank_in_track;
+          const medal = rank === 1 ? "#D9A400" : rank === 2 ? "#9AA7B4" : rank === 3 ? "#B87333" : null;
+          return `<tr>
+            <td style="text-align:center">
+              ${rank ? `<span style="display:inline-flex;width:28px;height:28px;border-radius:8px;align-items:center;justify-content:center;font-weight:800;
+                background:${medal ? medal : "var(--border-light)"};color:${medal ? "#fff" : "var(--muted)"}">${rank}</span>`
+                : `<span style="color:var(--muted);font-size:11.5px">—</span>`}
+            </td>
+            <td><strong>${esc(r.team_name)}</strong></td>
+            <td style="font-size:12.5px;color:var(--muted)">${esc(r.track_name||"—")}</td>
+            <td style="font-size:12.5px">${esc(r.project_title||"—")}
+              ${r.has_partial ? ` <span class="badge badge-gold" style="font-size:9px">جزئي</span>` : ""}</td>
+            <td style="text-align:center"><strong style="font-size:15px">${r.final_score !== null ? Number(r.final_score).toFixed(2) : "—"}</strong></td>
+            <td style="text-align:center">${r.judges_count}</td>
+            <td style="text-align:center;font-size:12.5px;color:${Number(r.spread) > 1.2 ? "var(--gold)" : "var(--muted)"}">${Number(r.spread).toFixed(2)}</td>
+            <td>${r.approval_status === "approved"
+                  ? `<span class="badge badge-green">معتمدة</span>`
+                  : `<span class="badge badge-gray">غير معتمدة</span>`}</td>
+          </tr>`;
+        }).join("")}
+      </tbody></table>` : `<div style="padding:20px">${emptyIllustration("trophy","لا توجد نتائج بعد","تظهر المراكز بعد أن يُدخل المحكّمون درجاتهم")}</div>`}
+    </div>
+
+    <p class="hint" style="margin-top:12px">
+      المركز يُحسب <strong>للنتائج المعتمَدة فقط</strong> داخل كل مسار.
+      النتيجة = متوسط معدلات المحكّمين، والمعدل = مجموع (الدرجة × وزن المعيار) ÷ مجموع الأوزان.
+      عند التساوي يُقدَّم الأقل تفاوتًا بين المحكّمين.
+    </p>`;
+  if(window.lucide) lucide.createIcons();
+}
+
+async function togglePublishRankings(publish){
+  const msg = publish
+    ? "إعلان النتائج للمشاركين؟\n\nستظهر المراكز في صفحة النتائج العامة فورًا."
+    : "إخفاء النتائج؟\n\nلن يراها المشاركون بعد الآن.";
+  if(!confirm(msg)) return;
+
+  const { data, error } = await sb.rpc("publish_rankings", { p_published: publish });
+  if(error || !data?.success){
+    showToast("خطأ: " + (data?.error || error?.message), true);
+    return;
+  }
+  logActivity(publish ? "إعلان النتائج" : "إخفاء النتائج", "judging");
+  showToast(publish ? "أُعلنت النتائج" : "أُخفيت النتائج");
+  renderRankings();
 }
 
 /* ============================================================

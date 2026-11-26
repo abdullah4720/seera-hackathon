@@ -7,7 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="cert.js"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --navy:#28323C; --navy-dark:#1B232B; --navy-light:#3A4754; --purple:#A67C00; --teal:#B8860B;
@@ -18,18 +22,94 @@
     --bg:#161C22; --card:#1E262E; --ink:#EEF0F2; --muted:#8b96a8; --border:#2F3944; --border-light:#252E37;
   }
   body.dark .stat-card, body.dark .card{ color:var(--ink); }
+  /* كل المشاريع */
+  .ap-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .ap-card{margin-bottom:12px}
+  .ap-head{display:flex;align-items:flex-start;gap:12px}
+  .ap-title{font-size:15.5px;font-weight:700;color:var(--navy)}
+  .ap-meta{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .ap-meta code{font-size:10.5px;color:var(--gold);background:#FBF3E2;
+    padding:2px 8px;border-radius:6px;margin-left:7px;margin-inline-end:7px}
+  .ap-fold{margin-top:11px;padding-top:11px;border-top:1px solid var(--border)}
+  .ap-fold summary{cursor:pointer;list-style:none;display:block;padding:2px 0}
+  .ap-fold summary::-webkit-details-marker{display:none}
+  .ap-row{display:flex;align-items:center;gap:7px;font-size:12.5px;
+    font-weight:600;color:var(--navy)}
+  .ap-row i,.ap-row svg{width:14px;height:14px;color:var(--teal);flex-shrink:0;
+    margin-left:7px;margin-inline-end:7px}
+  .ap-row>span:first-of-type{flex:1;min-width:0}
+  .ap-more{font-size:11px;color:var(--teal);background:rgba(217,164,0,.1);
+    padding:2px 10px;border-radius:6px;font-weight:600;white-space:nowrap}
+  .ap-fold[open] .ap-more{visibility:hidden}
+  .ap-body{margin-top:9px;font-size:12.5px;line-height:1.85;color:var(--ink);
+    white-space:pre-line;overflow-wrap:break-word;word-break:break-word}
+  .ap-file{display:inline-flex;align-items:center;gap:7px;margin-top:11px;
+    font-size:12.5px;color:var(--teal);text-decoration:none;font-weight:600}
+  .ap-file i,.ap-file svg{width:14px;height:14px;margin-left:7px;margin-inline-end:7px}
+  .ap-file:hover{text-decoration:underline}
+
   body.dark input, body.dark select, body.dark textarea{
     background:#1B232B !important; color:var(--ink) !important; border-color:var(--border) !important;
   }
   body.dark .slot-row{ background:var(--card); }
+  /* تمييز حالة الموعد بخط جانبي — أوضح من الشارة وحدها */
+  .slot-row{border-right:3px solid transparent;transition:.18s}
+  .sl-booked{border-right-color:#B8860B}
+  .sl-live{border-right-color:#D9A400;background:rgba(217,164,0,.045)}
+  .sl-done{border-right-color:#8FA6BC;background:#FAFBFC}
+  .sl-done .slot-time{color:var(--muted)}
+  .sl-free{border-right-color:#D5DBE3}
+  .sl-expired{border-right-color:#D5DBE3;opacity:.62}
+  .sl-cancelled{border-right-color:#C0392B;opacity:.6}
+  body.dark .sl-done{background:rgba(255,255,255,.02)}
+  body.dark .sl-live{background:rgba(217,164,0,.08)}
+
   body.dark .project-box{ background:#1B232B; }
+  /* طيّ تفاصيل المشروع — بعضها طويل ويملأ الصفحة */
+  .proj-fold{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+  .proj-fold summary{cursor:pointer;list-style:none;font-size:13px;
+    color:var(--navy);font-weight:600;padding:3px 0;display:block}
+  .proj-fold summary>span.row{display:flex;align-items:center;gap:7px}
+  .proj-fold summary::-webkit-details-marker{display:none}
+  .proj-fold summary i,.proj-fold summary svg{width:14px;height:14px;color:var(--gold);flex-shrink:0}
+  .proj-fold summary .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .proj-fold summary .more{font-size:11.5px;color:var(--teal);font-weight:600;
+    background:rgba(217,164,0,.1);padding:2px 9px;border-radius:6px;white-space:nowrap}
+  .proj-fold[open] summary .more{visibility:hidden}
+  .proj-body{padding-top:10px;animation:fold .22s ease}
+  @keyframes fold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  /* تبويبات المواعيد */
+  .subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .subtab{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:11px;
+    border:1px solid var(--border);background:#fff;color:var(--muted);
+    font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:.18s}
+  .subtab:hover{border-color:var(--teal);color:var(--navy)}
+  .subtab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+  .subtab i,.subtab svg{width:15px;height:15px}
+  .subtab .cnt{background:rgba(0,0,0,.08);padding:1px 8px;border-radius:20px;font-size:11.5px}
+  .subtab.active .cnt{background:rgba(255,255,255,.2)}
+  body.dark .subtab{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.14)}
+  body.dark .subtab.active{background:var(--teal);border-color:var(--teal);color:#28323C}
+
   *{box-sizing:border-box;}
   body{margin:0; font-family:'IBM Plex Sans Arabic', sans-serif; background:var(--bg); color:var(--ink);}
 
-  header{background:linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 60%, #1B232B 100%); color:#fff; padding:22px 24px;}
+  header{background:linear-gradient(135deg,#28323C 0%,#3A4754 58%,#00304F 100%); color:#fff; padding:18px 24px;}
+  .hdr-brand{display:flex; align-items:center; margin-bottom:14px;}
+  .hdr-brand img{height:26px; width:auto; flex-shrink:0; display:block; object-fit:contain;}
+  .hdr-brand .sep{width:1px; height:20px; flex-shrink:0; margin:0 18px; background:rgba(255,255,255,.28);}
+  .hdr-mark{width:46px; height:46px; border-radius:10px; overflow:hidden; flex-shrink:0; margin-left:14px; margin-inline-end:14px;
+            box-shadow:0 0 26px rgba(217,164,0,.3);}
+  .hdr-mark img{width:100%; height:100%; object-fit:contain; display:block;}
+  .hdr-title{display:flex; align-items:center;}
+  @media (max-width:640px){
+    .hdr-brand img{height:22px} .hdr-brand .sep{margin:0 12px}
+    .hdr-mark{width:38px;height:38px;margin-left:10px;margin-inline-end:10px}
+  }
   .header-row{max-width:900px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;}
   header h1{font-size:18px; margin:0;}
-  header p{margin:2px 0 0; font-size:12.5px; color:#B7BEC6;}
+  header p{margin:2px 0 0; font-size:12.5px; color:#a9b8d4;}
   .btn-link{background:none; border:none; color:#c8d3e8; cursor:pointer; font-size:12.5px; font-family:inherit;}
 
   main{max-width:900px; margin:0 auto; padding:24px;}
@@ -41,6 +121,16 @@
   .tab.active{color:var(--teal); border-color:var(--teal);}
 
   .field{margin-bottom:14px;}
+  /* تبويبات شاشة الدخول والتقديم */
+  .switcher{display:flex;gap:4px;background:var(--bg,#FEFAEC);padding:4px;border-radius:11px;margin-bottom:16px}
+  .switcher button{flex:1;padding:9px 12px;border:0;border-radius:8px;background:transparent;
+    font-family:inherit;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:.18s}
+  .switcher button.active{background:#fff;color:var(--navy,#28323C);box-shadow:0 1px 4px rgba(40,50,60,.1)}
+  body.dark .switcher{background:rgba(255,255,255,.06)}
+  body.dark .switcher button.active{background:rgba(255,255,255,.14);color:#fff}
+  .auth-gate textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;
+    font-family:inherit;font-size:13.5px;resize:vertical}
+
   .field label{display:block; font-size:13px; margin-bottom:6px; font-weight:500;}
   .field input, .field textarea, .field select{width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:9px; font-family:inherit; font-size:14px;}
   .form-row-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
@@ -62,49 +152,100 @@
     padding:18px 20px; margin-bottom:12px; background:#fff; border:1px solid var(--border); border-radius:14px;
     transition:.2s; box-shadow:0 1px 2px rgba(13,27,62,.03);
   }
-  .slot-row:hover{box-shadow:0 6px 18px rgba(13,27,62,.08); border-color:rgba(40,50,60,.18);}
+  .slot-row:hover{box-shadow:0 6px 18px rgba(13,27,62,.08); border-color:rgba(26,46,90,.18);}
   .slot-row.is-booked{border-right:3px solid var(--gold);}
   .slot-time{font-size:14.5px; font-weight:700; color:var(--navy); display:flex; align-items:center; gap:6px;}
-  .slot-time i{width:15px; height:15px; color:var(--gold);}
+  .slot-time i, .slot-time svg{width:15px; height:15px; color:var(--gold);}
   .slot-meta{font-size:12px; color:var(--muted); margin-top:3px;}
   .badge{display:inline-block; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:600;}
   .badge-gray{background:#f0f1f5; color:var(--muted);}
+  .badge-teal{background:rgba(217,164,0,.14);color:#8A6A00}
+  body.dark .badge-teal{background:rgba(217,164,0,.2);color:#F7C30D}
+
   .badge-green{background:#e6f7f3; color:var(--teal);}
+
+  /* كان مستخدمًا بتبويب الشهادات لكنه غير معرَّف بهذه الصفحة */
+  .member-row{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--border);}
+  .member-row:last-child{border-bottom:none;}
   .badge-gold{background:#fbf3e2; color:var(--gold);}
 
   .project-box{background:var(--border-light); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-top:12px;}
   .stat-card{background:var(--border-light); border-radius:12px; padding:16px 18px; text-align:center;}
   .stat-card .num{font-size:24px; font-weight:700; color:var(--navy);}
   .stat-card .label{font-size:11.5px; color:var(--muted); margin-top:4px;}
-  @media (max-width:600px){ img.hdr-logo{height:34px !important;} }
-  .who-badge{width:38px; height:38px; border-radius:10px; background:#F7C30D; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,.25);}
-  .who-badge svg{width:20px; height:20px; color:#28323C; stroke-width:2.2;}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="config.js"></script>
-<script src="cert.js"></script>
 </head>
 <body>
 
 <div style="background:rgba(253,252,250,.95); border-bottom:1px solid var(--border); padding:14px 20px; text-align:center;">
-  <a href="./index.html" style="text-decoration:none"><img src="data:image/png;base64,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" alt="جامعة القصيم" class="hdr-logo" style="height:44px; display:inline-block; vertical-align:middle;">
+  <a href="./index.html" style="text-decoration:none"><img src="./qassim-logo.png" alt="جامعة القصيم" style="height:28px; display:inline-block; vertical-align:middle;">
   <span style="display:inline-block; width:1px; height:22px; background:var(--border); margin:0 12px; vertical-align:middle;"></span>
-  <img src="data:image/png;base64,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" alt="كرسي الشيخ عبدالله بن صالح الراشد الحميد لخدمة السيرة النبوية" class="hdr-logo" style="height:54px; display:inline-block; vertical-align:middle;"></a>
+  <img src="./chair-logo.png" alt="كرسي الشيخ عبدالله بن صالح الراشد الحميد" style="height:28px; display:inline-block; vertical-align:middle;"></a>
 </div>
 <div id="auth-gate-screen" class="auth-gate">
   <h2>لوحة الإرشاد</h2>
-  <p>سجّل دخولك بحساب المرشد الخاص بك</p>
+  <p id="gate-tagline">شارك خبرتك مع فرق تبني مشاريع رقمية مبتكرة في خدمة السيرة النبوية</p>
+
+  <div class="switcher" id="gate-tabs">
+    <button id="tab-login" class="active" onclick="gateTab('login')">تسجيل الدخول</button>
+    <button id="tab-apply" onclick="gateTab('apply')">التقديم كمرشد</button>
+  </div>
+
   <div id="gate-alert" class="alert"></div>
-  <div class="field"><input type="email" id="gate-email" placeholder="البريد الإلكتروني"></div>
-  <div class="field"><input type="password" id="gate-password" placeholder="كلمة المرور"></div>
-  <button class="btn btn-primary" style="width:100%" onclick="handleGateLogin()">دخول</button>
+
+  <!-- دخول -->
+  <div id="pane-login">
+    <div class="field"><input type="email" id="gate-email" placeholder="البريد الإلكتروني"></div>
+    <div class="field"><input type="password" id="gate-password" placeholder="كلمة المرور"></div>
+    <button class="btn btn-primary" onclick="handleGateLogin()">دخول</button>
+  </div>
+
+  <!-- تقديم -->
+  <div id="pane-apply" style="display:none">
+    <div class="switcher" style="margin-bottom:14px">
+      <button id="ap-new" class="active" onclick="applyMode('new')">حساب جديد</button>
+      <button id="ap-existing" onclick="applyMode('existing')">لدي حساب</button>
+    </div>
+
+    <div id="ap-new-fields">
+      <div class="field"><input id="ap-name" placeholder="الاسم الكامل"></div>
+      <div class="field"><input type="email" id="ap-email" placeholder="البريد الإلكتروني"></div>
+      <div class="field"><input id="ap-phone" placeholder="رقم الجوال"></div>
+      <div class="field"><input id="ap-org" placeholder="الجهة"></div>
+      <div class="field"><input type="password" id="ap-password" placeholder="كلمة المرور"></div>
+    </div>
+
+    <div id="ap-existing-fields" style="display:none">
+      <div class="field"><input type="email" id="ap-login-email" placeholder="البريد الإلكتروني"></div>
+      <div class="field"><input type="password" id="ap-login-password" placeholder="كلمة المرور"></div>
+    </div>
+
+    <div class="field"><input id="ap-position" placeholder="المنصب الحالي (اختياري)"></div>
+    <div class="field"><input id="ap-spec" placeholder="التخصص أو المجال"></div>
+    <div class="field"><textarea id="ap-bio" rows="3" placeholder="نبذة عن خبرتكم"></textarea></div>
+
+    <button class="btn btn-primary" onclick="submitApplication()">إرسال الطلب</button>
+  </div>
+
+  <!-- حالة الطلب -->
+  <div id="pane-status" style="display:none;text-align:center;padding:10px 0">
+    <p id="status-text" style="font-size:14.5px;line-height:1.9;margin:0 0 14px"></p>
+    <button class="btn btn-outline" style="width:auto" onclick="handleLogout()">تسجيل الخروج</button>
+  </div>
 </div>
 
 <div id="content-screen" style="display:none">
   <header>
+    <div class="hdr-brand">
+      <img src="./chair-logo.png" alt="كرسي الشيخ عبدالله بن صالح الراشد الحميد">
+      <div class="sep"></div>
+      <img src="./qassim-logo.png" alt="جامعة القصيم">
+    </div>
     <div class="header-row">
-      <div style="display:flex;align-items:center;gap:12px"><span class="who-badge" aria-hidden="true"><i data-lucide="book-open-text"></i></span><div><h1 id="mentor-welcome">لوحة الإرشاد</h1><p>إدارة مواعيدك وملاحظاتك للفرق</p></div></div>
+      <div class="hdr-title">
+        <div class="hdr-mark"><img src="./seera-mark.svg" alt="هاكثون السيرة النبوية"></div>
+        <div><h1 id="mentor-welcome">لوحة الإرشاد</h1><p>إدارة مواعيدك وملاحظاتك للفرق</p></div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button id="theme-toggle" onclick="toggleTheme()" title="تبديل الوضع الداكن/الفاتح" style="background:none;border:1px solid rgba(255,255,255,.25);border-radius:8px;width:32px;height:32px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><i data-lucide="moon" style="width:15px;height:15px"></i></button>
         <button class="btn-link" onclick="handleLogout()">تسجيل الخروج</button>
@@ -118,6 +259,7 @@
       <div class="tab" data-t="add"><i data-lucide="calendar-plus" style="width:14px;height:14px;vertical-align:-2px"></i> إضافة موعد جديد</div>
       <div class="tab" data-t="bulk"><i data-lucide="calendar-range" style="width:14px;height:14px;vertical-align:-2px"></i> إضافة مواعيد بالجملة</div>
       <div class="tab" data-t="profile"><i data-lucide="user-round" style="width:14px;height:14px;vertical-align:-2px"></i> ملفي الشخصي</div>
+      <div class="tab" data-t="projects"><i data-lucide="folder-open" style="width:14px;height:14px;vertical-align:-2px"></i> كل المشاريع</div>
       <div class="tab" data-t="certs"><i data-lucide="award" style="width:14px;height:14px;vertical-align:-2px"></i> شهاداتي</div>
     </div>
     <div id="main-content">جاري التحميل...</div>
@@ -135,6 +277,109 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 let currentTab = "slots";
+
+/* ---------------- كل المشاريع ---------------- */
+// اطّلاع عام على مشاريع البرنامج. السياسة في القاعدة تسمح
+// للمرشد والمحكّم بقراءتها، والعرض هنا بلا درجات ولا ملاحظات.
+
+let allProjectsCache = [];
+
+async function renderAllProjects(){
+  const box = document.getElementById("main-content");
+  box.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
+
+  const { data, error } = await sb.from("submissions")
+    .select("id, title, description, file_url, version, submitted_at, team_id, teams(team_name, team_code, tracks(name_ar))")
+    .order("submitted_at", { ascending: false });
+
+  if(error){
+    box.innerHTML = `<div class="card"><p class="hint">تعذّر التحميل: ${esc(error.message)}</p></div>`;
+    return;
+  }
+
+  // نسخة واحدة لكل فريق: الأحدث
+  const latest = new Map();
+  (data || []).forEach(p => {
+    const cur = latest.get(p.team_id);
+    if(!cur || (p.version || 0) > (cur.version || 0)) latest.set(p.team_id, p);
+  });
+  allProjectsCache = [...latest.values()];
+
+  const tracks = [...new Set(allProjectsCache
+    .map(p => p.teams?.tracks?.name_ar).filter(Boolean))].sort();
+
+  box.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="ap-bar">
+        <div class="field" style="margin:0;flex:1;min-width:190px">
+          <label>بحث بالمشروع أو الفريق أو رقمه</label>
+          <input id="ap-search" placeholder="اكتب للبحث..." oninput="filterAllProjects()">
+        </div>
+        <div class="field" style="margin:0;min-width:170px">
+          <label>المسار</label>
+          <select id="ap-track" onchange="filterAllProjects()">
+            <option value="">كل المسارات</option>
+            ${tracks.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <p class="hint" id="ap-count" style="margin:12px 0 0"></p>
+    </div>
+    <div id="ap-list"></div>`;
+
+  filterAllProjects();
+}
+
+function filterAllProjects(){
+  const term  = (document.getElementById("ap-search")?.value || "").trim().toLowerCase();
+  const track = document.getElementById("ap-track")?.value || "";
+
+  const shown = allProjectsCache.filter(p => {
+    if(track && p.teams?.tracks?.name_ar !== track) return false;
+    if(!term) return true;
+    return (p.title || "").toLowerCase().includes(term)
+        || (p.teams?.team_name || "").toLowerCase().includes(term)
+        || (p.teams?.team_code || "").toLowerCase().includes(term);
+  });
+
+  const cnt = document.getElementById("ap-count");
+  if(cnt) cnt.textContent = shown.length === allProjectsCache.length
+    ? `${allProjectsCache.length} مشروعًا`
+    : `${shown.length} من ${allProjectsCache.length}`;
+
+  const list = document.getElementById("ap-list");
+  if(!shown.length){
+    list.innerHTML = `<div class="card"><div class="empty-state">لا مشاريع مطابقة</div></div>`;
+    return;
+  }
+
+  list.innerHTML = shown.map(p => `
+    <div class="card ap-card">
+      <div class="ap-head">
+        <div style="flex:1;min-width:0">
+          <div class="ap-title">${esc(p.title || "بلا عنوان")}</div>
+          <div class="ap-meta">
+            ${p.teams?.team_code ? `<code>${esc(p.teams.team_code)}</code>` : ""}
+            ${esc(p.teams?.team_name || "—")}
+            ${p.teams?.tracks?.name_ar ? ` · ${esc(p.teams.tracks.name_ar)}` : ""}
+          </div>
+        </div>
+      </div>
+      ${p.description ? `
+        <details class="ap-fold">
+          <summary><span class="ap-row">
+            <i data-lucide="file-text"></i>
+            <span>وصف المشروع</span>
+            <span class="ap-more">عرض</span>
+          </span></summary>
+          <div class="ap-body">${esc(p.description)}</div>
+        </details>` : ""}
+      ${p.file_url ? `<a class="ap-file" href="${esc(p.file_url)}" target="_blank" rel="noopener">
+        <i data-lucide="paperclip"></i> فتح ملف المشروع</a>` : ""}
+    </div>`).join("");
+
+  if(window.lucide) lucide.createIcons();
+}
 
 function esc(str){
   if(str === null || str === undefined) return "";
@@ -171,8 +416,25 @@ async function handleGateLogin(){
     alertBox.textContent = "هذا الحساب لا يملك صلاحية الإرشاد"; alertBox.className = "alert error";
     return;
   }
+
+  // الإداري يتجاوز فحص التفعيل (يحتاج يدخل للمتابعة والتنظيف)
+  if(!roleKeys.includes("admin") && !(await isAccountActive(data.user.id))){
+    await sb.auth.signOut();
+    alertBox.textContent = "حسابك كمرشد معطَّل حاليًا. للاستفسار تواصل مع فريق تنظيم البرنامج.";
+    alertBox.className = "alert error";
+    return;
+  }
+
   currentUser = data.user;
   showContent();
+}
+
+// فحص حالة الحساب — الحجب الحقيقي على مستوى قاعدة البيانات (ملف 67)
+// وهذا الفحص لتجربة استخدام أوضح بدل رسائل خطأ غامضة داخل اللوحة
+async function isAccountActive(userId){
+  const { data, error } = await sb.from("profiles").select("is_active").eq("id", userId).maybeSingle();
+  if(error || !data) return true;   // لا نحجب بسبب عطل شبكة — القاعدة تحمي فعليًا
+  return data.is_active !== false;
 }
 function toggleTheme(){
   const isDark = document.body.classList.toggle("dark");
@@ -195,18 +457,131 @@ async function handleLogout(){
   document.getElementById("content-screen").style.display = "none";
   document.getElementById("auth-gate-screen").style.display = "block";
 }
+function gateTab(t){
+  document.getElementById("tab-login").classList.toggle("active", t === "login");
+  document.getElementById("tab-apply").classList.toggle("active", t === "apply");
+  document.getElementById("pane-login").style.display = t === "login" ? "block" : "none";
+  document.getElementById("pane-apply").style.display = t === "apply" ? "block" : "none";
+  const a = document.getElementById("gate-alert");
+  a.textContent = ""; a.className = "alert";
+}
+
+function applyMode(m){
+  document.getElementById("ap-new").classList.toggle("active", m === "new");
+  document.getElementById("ap-existing").classList.toggle("active", m === "existing");
+  document.getElementById("ap-new-fields").style.display      = m === "new" ? "block" : "none";
+  document.getElementById("ap-existing-fields").style.display = m === "existing" ? "block" : "none";
+}
+
+function gateAlert(msg, type){
+  const a = document.getElementById("gate-alert");
+  a.textContent = msg;
+  a.className = "alert " + (type || "error");
+}
+
+// رابط واحد لكل دور: الصفحة تتصرّف حسب حالة الزائر.
+// غير مسجّل → دخول أو تقديم · طلب معلّق → حالته · معتمَد → اللوحة.
 async function restoreSession(){
   const { data } = await sb.auth.getSession();
-  if(data.session){
-    const { data: roles } = await sb.from("user_roles").select("roles(key)").eq("user_id", data.session.user.id);
-    const roleKeys = (roles||[]).map(r => r.roles?.key);
-    if(roleKeys.includes("mentor") || roleKeys.includes("admin")){
-      currentUser = data.session.user;
-      showContent();
-    }
+  if(!data.session) return;
+
+  const uid = data.session.user.id;
+  const { data: roles } = await sb.from("user_roles").select("roles(key)").eq("user_id", uid);
+  const keys = (roles || []).map(r => r.roles?.key);
+
+  if(keys.includes("mentor") || keys.includes("admin")){
+    currentUser = data.session.user;
+    showContent();
+    return;
   }
+
+  // مسجّل بلا دور: نعرض حالة طلبه
+  const { data: app } = await sb.from("mentor_applications")
+    .select("status").eq("user_id", uid).maybeSingle();
+
+  document.getElementById("gate-tabs").style.display = "none";
+  document.getElementById("pane-login").style.display = "none";
+  document.getElementById("pane-apply").style.display = "none";
+  document.getElementById("pane-status").style.display = "block";
+
+  document.getElementById("status-text").textContent =
+    !app                      ? "لم يُسجَّل لكم طلب انضمام بعد. سجّلوا الخروج ثم قدّموا طلبًا جديدًا."
+    : app.status === "pending"  ? "طلبكم قيد المراجعة من فريق التنظيم. سنُشعركم فور اعتماده."
+    : app.status === "rejected" ? "نعتذر عن عدم إمكانية قبول طلبكم في هذه الدورة."
+    : "طلبكم معتمد. إن لم تظهر لوحتكم، يرجى تسجيل الخروج والدخول من جديد.";
 }
 restoreSession();
+
+async function submitApplication(){
+  const mode = document.getElementById("ap-new").classList.contains("active") ? "new" : "existing";
+  const spec = document.getElementById("ap-spec").value.trim();
+  const bio  = document.getElementById("ap-bio").value.trim();
+  const pos  = document.getElementById("ap-position").value.trim();
+
+  if(!spec){ gateAlert("التخصص أو المجال مطلوب"); return; }
+
+  let uid = null;
+
+  if(mode === "new"){
+    const name  = document.getElementById("ap-name").value.trim();
+    const email = document.getElementById("ap-email").value.trim();
+    const phone = document.getElementById("ap-phone").value.trim();
+    const org   = document.getElementById("ap-org").value.trim();
+    const pass  = document.getElementById("ap-password").value;
+
+    if(!name || !email || !pass){ gateAlert("الاسم والبريد وكلمة المرور مطلوبة"); return; }
+    if(pass.length < 6){ gateAlert("كلمة المرور يجب ألا تقل عن ستة أحرف"); return; }
+
+    const { data, error } = await sb.auth.signUp({
+      email, password: pass,
+      options: { data: { full_name: name, phone, organization: org } }
+    });
+    if(error){
+      gateAlert(error.message.includes("already")
+        ? "هذا البريد مسجّل مسبقًا — استخدموا «لدي حساب»" : error.message);
+      return;
+    }
+    if(!data.session){
+      gateAlert("تحققوا من بريدكم لتأكيد الحساب، ثم عودوا واستخدموا «لدي حساب»", "success");
+      return;
+    }
+    uid = data.user.id;
+  } else {
+    const email = document.getElementById("ap-login-email").value.trim();
+    const pass  = document.getElementById("ap-login-password").value;
+    if(!email || !pass){ gateAlert("البريد وكلمة المرور مطلوبان"); return; }
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if(error){ gateAlert("بيانات الدخول غير صحيحة"); return; }
+    uid = data.user.id;
+  }
+
+  // من اعتُمد سابقًا لا يُعيد التقديم — إعادة الإرسال تُرجع الحالة
+  // إلى pending فيفقد صلاحيته.
+  const { data: myRoles } = await sb.from("user_roles").select("roles(key)").eq("user_id", uid);
+  if((myRoles || []).some(r => r.roles?.key === "mentor")){
+    gateAlert("حسابكم معتمد بالفعل — جارٍ فتح لوحتكم", "success");
+    setTimeout(() => location.reload(), 1200);
+    return;
+  }
+
+  // تعارض المصالح: عضو فريق لا يكون مرشدًا بنفس الحساب
+  const { data: mem } = await sb.from("team_members").select("id").eq("user_id", uid).limit(1);
+  if(mem && mem.length){
+    gateAlert("هذا الحساب مسجَّل عضوًا بأحد الفرق. لمنع تعارض المصالح، استخدموا بريدًا مختلفًا");
+    return;
+  }
+
+  if(pos) await sb.from("profiles").update({ current_position: pos }).eq("id", uid);
+
+  const { error: appErr } = await sb.from("mentor_applications").upsert({
+    user_id: uid, specialization: spec, bio: bio || null, status: "pending"
+  }, { onConflict: "user_id" });
+
+  if(appErr){ gateAlert("تعذّر إرسال الطلب: " + appErr.message); return; }
+
+  gateAlert("تم إرسال طلبكم. سنُشعركم فور مراجعته", "success");
+  setTimeout(() => location.reload(), 1600);
+}
 
 async function showContent(){
   document.getElementById("auth-gate-screen").style.display = "none";
@@ -247,6 +622,7 @@ function renderTab(){
   if(currentTab === "slots") renderSlots();
   else if(currentTab === "add") renderAddSlot();
   else if(currentTab === "bulk") renderBulkAddSlots();
+  else if(currentTab === "projects") renderAllProjects();
   else if(currentTab === "certs") renderMentorCertsTab();
   else renderMyProfile();
 }
@@ -264,14 +640,17 @@ async function renderMentorCertsTab(){
   const issuedMap = {};
   (myCerts||[]).forEach(c => issuedMap[c.cert_type_id] = c);
 
+  const { data: myProfile } = await sb.from("profiles").select("full_name").eq("id", currentUser.id).maybeSingle();
+  const myFullName = myProfile?.full_name || currentUser.email;
+
   main.innerHTML = `<div class="card"><h3 style="margin:0 0 14px">شهاداتي</h3>
     ${types.map(t => {
       const issued = issuedMap[t.id];
       return `<div class="member-row">
-        <span>${esc(t.name_ar)}</span>
+        <span>${esc(t.name_ar)}${issued ? `<br><span style="font-size:11.5px;color:var(--muted)">صادرة ${fmtDate(issued.issued_at)} · رمز التحقق: ${esc(issued.verification_code)}</span>` : ""}</span>
         <span style="display:flex;align-items:center;gap:8px">
           ${issued
-            ? `<span class="badge badge-green">صادرة</span><button class="btn-link" style="font-size:12px" onclick='previewMentorCert(${jsArg({name: "", typeName: t.name_ar, text: t.certificate_text, code: issued.verification_code, date: issued.issued_at})})'>معاينة</button>`
+            ? `<button class="btn btn-primary btn-sm" style="width:auto;padding:8px 16px" onclick='openCertOverlay(${jsArg({name: myFullName, typeName: t.name_ar, text: t.certificate_text, introText: t.intro_text, sigLabelOverride: t.signature_label, sigNameOverride: t.signature_name, code: issued.verification_code, date: issued.issued_at}).replace(/'/g,"&#39;")})'>عرض الشهادة</button>`
             : `<button class="btn btn-outline btn-sm" style="width:auto" onclick="issueMentorCertificate('${t.key}')">إصدار الشهادة</button>`}
         </span>
       </div>`;
@@ -284,17 +663,14 @@ async function issueMentorCertificate(certKey){
   if(!data.success){ alert("لم تكتمل الشروط بعد لإصدار هذه الشهادة"); return; }
   renderMentorCertsTab();
 }
-async function previewMentorCert({typeName, text, code, date}){
-  const { data: p } = await sb.from("profiles").select("full_name").eq("id", currentUser.id).single();
-  SeeraCert.open({ name: p?.full_name || "", typeName, text, roleKey: "mentor", code, date });
-}
+/* ---------------- الشهادة: التصميم الموحّد في cert.js ---------------- */
+async function openCertOverlay(data){ SeeraCert.open(Object.assign({ roleKey: "mentor" }, data)); }
 
-/* ---------------- ملفي الشخصي ---------------- */
 async function renderMyProfile(){
   const main = document.getElementById("main-content");
   const { data: profile } = await sb.from("profiles").select("*").eq("id", currentUser.id).single();
   const specOptions = ["السيرة النبوية والدراسات الإسلامية","التاريخ والتراث والتوثيق","التربية والتعليم","الإعلام والتواصل","الذكاء الاصطناعي وتعلم الآلة","تطوير البرمجيات والتطبيقات","تجربة المستخدم وتصميم المنتجات","الإنتاج الرقمي والمحتوى والرسوم المتحركة","الواقع المعزز والافتراضي والألعاب","ريادة الأعمال وإدارة المشاريع","أخرى"];
-  const domainOptions = ["أكاديمي / جامعي","قطاع حكومي","قطاع ديني / دعوي / وقفي","قطاع خاص / شركات تقنية","ريادة أعمال / تأسيس شركات","أخرى"];
+  const domainOptions = ["أكاديمي / جامعي","قطاع حكومي","قطاع قضائي","قطاع خاص / شركات تقنية","ريادة أعمال / تأسيس شركات","أخرى"];
   const [savedSpec, savedDomain] = (profile.specialization||"").split(" — ");
   main.innerHTML = `<div class="card">
     <h3 style="margin:0 0 16px">ملفي الشخصي</h3>
@@ -311,7 +687,7 @@ async function renderMyProfile(){
         ${domainOptions.map(o => `<option value="${esc(o)}" ${savedDomain===o?"selected":""}>${esc(o)}</option>`).join("")}
       </select>
     </div>
-    <div class="field"><label>المسمى الوظيفي / جهة العمل الحالية</label><input id="profile-position" value="${esc(profile.current_position||"")}" placeholder="مثال: مهندس برمجيات أول، شركة كذا"></div>
+    <div class="field"><label>المسمى الوظيفي / جهة العمل الحالية</label><input id="profile-position" value="${esc(profile.current_position||"")}" placeholder=""></div>
     <div class="field"><label>نبذة تعريفية</label><textarea id="profile-bio" rows="4" placeholder="خبرتك ذات الصلة بالبرنامج...">${esc(profile.bio||"")}</textarea></div>
     <div id="profile-alert" class="alert"></div>
     <button class="btn btn-primary" onclick="saveMyProfile()">حفظ التعديلات</button>
@@ -331,14 +707,31 @@ async function saveMyProfile(){
 }
 
 /* ---------------- مواعيدي ---------------- */
+async function setSessionHeld(bookingId, held){
+  const { data, error } = await sb.rpc("confirm_session_held", {
+    p_booking_id: bookingId, p_held: held
+  });
+  if(error || !data?.success){
+    alert(data?.error || error?.message || "تعذّر الإجراء");
+    return;
+  }
+  renderSlots();
+}
+
+function setSlotFilter(k){
+  window._slotFilter = k;
+  renderSlots();
+}
+
 async function renderSlots(){
   const main = document.getElementById("main-content");
-  main.innerHTML = `<div id="bulk-close-box"></div>
-    <div id="slots-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px"></div>
-    <div class="card"><div id="slots-list">جاري التحميل...</div></div>`;
+  main.innerHTML = `
+    <div id="slots-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px"></div>
+    <div class="subtabs" id="slot-filters"></div>
+    <div class="card"><div id="slots-list">جارٍ التحميل...</div></div>`;
 
   const { data, error } = await sb.from("mentor_slots")
-    .select("id, start_time, end_time, is_online, location, is_booked, mentor_bookings(id, team_id, status, requested_topic, teams(team_name, team_code, tracks(name_ar)))")
+    .select("id, start_time, end_time, is_online, location, is_booked, mentor_bookings(id, team_id, status, requested_topic, held_at, teams(team_name, team_code, tracks(name_ar)))")
     .eq("mentor_user_id", currentUser.id)
     .order("start_time");
 
@@ -346,38 +739,33 @@ async function renderSlots(){
   if(error){ box.innerHTML = `<div class="empty-state">خطأ: ${esc(error.message)}</div>`; return; }
 
   // إحصائيات سريعة — البند 4: عدد الجلسات المغلقة
-  const allBookings = data.flatMap(s => s.mentor_bookings || []);
-  const closedCount = allBookings.filter(b => b.status === "completed").length;
-  const upcomingCount = allBookings.filter(b => b.status === "confirmed" && data.find(s => (s.mentor_bookings||[])[0]?.id === b.id && new Date(s.end_time) > new Date())).length;
-  document.getElementById("slots-stats").innerHTML = `
-    <div class="stat-card"><div class="num">${data.length}</div><div class="label">إجمالي المواعيد</div></div>
-    <div class="stat-card"><div class="num">${allBookings.filter(b=>b.status==="confirmed"||b.status==="pending").length}</div><div class="label">قادمة / بانتظار التأكيد</div></div>
-    <div class="stat-card"><div class="num" style="color:var(--teal)">${closedCount}</div><div class="label">جلسات مغلقة</div></div>
-  `;
-
-  // زر الإقفال الجماعي — يشمل فقط الجلسات المؤكدة التي تجاوزت وقت نهايتها فعليًا
   const now = new Date();
-  window._endedUnclosedBookings = data
-    .filter(s => (s.mentor_bookings||[])[0]?.status === "confirmed" && new Date(s.end_time) < now)
-    .map(s => ({
-      bookingId: s.mentor_bookings[0].id,
-      teamId: s.mentor_bookings[0].team_id,
-      teamName: s.mentor_bookings[0].teams?.team_name || "",
-      endTime: s.end_time
-    }));
-  const bulkBox = document.getElementById("bulk-close-box");
-  if(window._endedUnclosedBookings.length){
-    bulkBox.innerHTML = `<div class="card" style="border-color:var(--gold);background:#fbf3e2;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div style="font-size:13.5px"><strong>${window._endedUnclosedBookings.length}</strong> جلسة انتهى وقتها ولسا ما أُقفلت — أقفلها دفعة واحدة قبل ما تبدأ يوم جديد</div>
-      <button class="btn btn-primary btn-sm" onclick="openBulkCloseModal()">إقفال كل الجلسات المنتهية</button>
-    </div>`;
-  } else {
-    bulkBox.innerHTML = "";
-  }
+
+  // العدّادات من الوقت لا من status: الحالة تبقى confirmed بعد
+  // انقضاء الموعد، والقديم كان يعدّ المنتهية ضمن «القادمة».
+  // و«جلسات مغلقة» كانت صفرًا دائمًا بعد إلغاء زر الإغلاق.
+  let cUpcoming = 0, cHeld = 0, cPending = 0, cFree = 0;
+  data.forEach(sl => {
+    const b  = (sl.mentor_bookings || [])[0];
+    const en = new Date(sl.end_time);
+    if(b && b.status === "cancelled") return;
+    if(!b){ if(en > now) cFree++; return; }
+    if(en > now)        cUpcoming++;
+    else if(b.held_at)  cHeld++;
+    else                cPending++;
+  });
+
+  document.getElementById("slots-stats").innerHTML = `
+    <div class="stat-card"><div class="num">${cUpcoming}</div><div class="label">جلسات قادمة</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--teal)">${cHeld}</div><div class="label">تمت الاستشارة</div></div>
+    <div class="stat-card"><div class="num" style="${cPending ? "color:var(--gold)" : ""}">${cPending}</div><div class="label">تنتظر تأكيدك</div></div>
+    <div class="stat-card"><div class="num">${cFree}</div><div class="label">مواعيد متاحة</div></div>
+  `;
 
   if(!data.length){ box.innerHTML = `<div class="empty-state">لا توجد مواعيد مضافة بعد — أضف موعدك الأول من التبويب الثاني</div>`; return; }
 
   const teamIds = [...new Set(data.map(s => (s.mentor_bookings||[])[0]?.team_id).filter(Boolean))];
+
   let submissionsByTeam = {};
   if(teamIds.length){
     const { data: submissions } = await sb.from("submissions")
@@ -389,11 +777,72 @@ async function renderSlots(){
     });
   }
 
-  box.innerHTML = data.map(s => {
+  // تقسيم زمني لا حسب الحالة: المرشد يفكّر بيومه لا بتصنيف
+  // مواعيده. الجلسة المنتهية تبقى أمامه ليكتب ملاحظاتها، لكنها
+  // لا تختلط بجلسات الأسبوع الماضي.
+  const dayKey = d => new Date(d).toLocaleDateString("en-CA");   // YYYY-MM-DD محلي
+  const today  = dayKey(now);
+
+  // الجلسات (محجوزة + منتهية) معًا: المرشد يتابع فرقه في مكان
+  // واحد، ويميّزها باللون. المواعيد الفارغة منفصلة لأنها إدارة
+  // جدول لا متابعة فرق.
+  const groupOf = s => {
+    const b = (s.mentor_bookings||[])[0];
+    if(b && b.status === "cancelled") return "cancelled";
+    if(b) return b.held_at ? "done" : "sessions";   // المؤكَّدة تنتقل للمنجزة
+    return new Date(s.end_time) <= now ? "expired" : "free";
+  };
+  const groups = { sessions: [], done: [], free: [], expired: [], cancelled: [] };
+  data.forEach(s => groups[groupOf(s)].push(s));
+
+  // الجلسات: القادمة أولًا ثم الأحدث انتهاءً
+  groups.sessions.sort((a, b) => {
+    const ea = new Date(a.end_time) <= now, eb = new Date(b.end_time) <= now;
+    if(ea !== eb) return ea ? 1 : -1;                         // غير المنتهية أولًا
+    return ea ? new Date(b.start_time) - new Date(a.start_time)
+              : new Date(a.start_time) - new Date(b.start_time);
+  });
+  groups.done     .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+  groups.free     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  groups.expired  .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+  groups.cancelled.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+
+  const TABS = [
+    ["sessions",  "الجلسات",            "calendar-check"],
+    ["done",      "استشارات منجزة",     "circle-check"],
+    ["free",      "مواعيد متاحة",       "calendar-plus"],
+    ["expired",   "انتهت",              "calendar-x"],
+    ["cancelled", "ملغاة",              "circle-slash"],
+  ];
+  if(!window._slotFilter || !TABS.some(t => t[0] === window._slotFilter)){
+    window._slotFilter = TABS.find(t => groups[t[0]].length)?.[0] || "sessions";
+  }
+
+  document.getElementById("slot-filters").innerHTML = TABS.map(([k, label, icon]) => `
+    <button class="subtab ${window._slotFilter === k ? "active" : ""}"
+            onclick="setSlotFilter('${k}')">
+      <i data-lucide="${icon}"></i> ${label}
+      <span class="cnt">${groups[k].length}</span>
+    </button>`).join("");
+
+  const shown = groups[window._slotFilter] || [];
+  if(!shown.length){
+    box.innerHTML = `<div class="empty-state">لا مواعيد في هذه المجموعة</div>`;
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
+
+  box.innerHTML = shown.map(s => {
     const booking = (s.mentor_bookings||[])[0];
+    const _en = new Date(s.end_time), _st = new Date(s.start_time);
+    const rowCls =
+        (booking && booking.status === "cancelled") ? "sl-cancelled"
+      : (_en <= now)  ? (booking ? "sl-done" : "sl-expired")
+      : !booking      ? "sl-free"
+      : (_st <= now)  ? "sl-live" : "sl-booked";
     const submission = booking ? submissionsByTeam[booking.team_id] : null;
     return `
-    <div class="slot-row ${booking ? 'is-booked' : ''}">
+    <div class="slot-row ${rowCls}">
       <div style="flex:1">
         <div class="slot-time"><i data-lucide="calendar-clock"></i> ${fmtDate(s.start_time)}</div>
         <div class="slot-meta">${esc(s.location || (s.is_online ? "عبر الإنترنت" : ""))}</div>
@@ -411,32 +860,55 @@ async function renderSlots(){
               </div>
             ` : ""}
             ${submission ? `
-              <div style="padding-top:10px; border-top:1px solid var(--border)">
-                <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px">
-                  <i data-lucide="folder-open" style="width:14px;height:14px;color:var(--gold)"></i>
-                  <strong style="color:var(--navy); font-size:13px">${esc(submission.title)}</strong>
-                </div>
+              <details class="proj-fold">
+                <summary><span class="row">
+                  <i data-lucide="folder-open"></i>
+                  <span class="t">${esc(submission.title)}</span>
+                  <span class="more">عرض التفاصيل</span>
+                </span></summary>
+                <div class="proj-body">
                 ${submission.description ? `<p style="margin:0 0 8px;color:var(--ink);line-height:1.7;font-size:12.5px">${esc(submission.description)}</p>` : `<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">لا يوجد وصف مضاف بعد</p>`}
                 ${submission.file_url
                   ? `<a href="${esc(submission.file_url)}" target="_blank" style="color:var(--teal);font-weight:600;font-size:12.5px;display:inline-flex;align-items:center;gap:4px"><i data-lucide="paperclip" style="width:13px;height:13px"></i> فتح ملف المشروع</a>`
                   : `<span style="color:var(--muted);font-size:12.5px">لا يوجد ملف مرفق</span>`}
               </div>
+              </details>
             ` : `<div style="padding-top:10px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px">لم يقدّم الفريق مشروعه بعد</div>`}
           </div>
         ` : ""}
       </div>
       <div style="text-align:left">
-        ${!booking ? '<span class="badge badge-gray">غير محجوز</span>' :
-          booking.status === "completed" ? '<span class="badge badge-green">✓ جلسة مغلقة</span>' :
-          booking.status === "no_show_team" ? '<span class="badge badge-red">لم يحضر الفريق</span>' :
-          booking.status === "no_show_mentor" ? '<span class="badge badge-red">لم تحضر (مسجَّل من الفريق)</span>' :
-          booking.status === "confirmed" ? '<span class="badge badge-gold">مؤكد</span>' :
-          '<span class="badge badge-gray">قيد الانتظار — بانتظار تأكيدك</span>'}
+        ${(() => {
+          // الوقت يُفحص أولًا: الموعد الذي مضى وقته لم يعد متاحًا
+          // للحجز حتى لو لم يحجزه أحد — كان يظهر «متاح» بالخطأ.
+          const now = new Date(), en = new Date(s.end_time), st = new Date(s.start_time);
+          if(booking && booking.status === "cancelled")
+            return '<span class="badge badge-red">ملغاة</span>';
+          if(en <= now){
+            if(!booking) return '<span class="badge badge-gray">لم يتم حجزها</span>';
+            // التأكيد يضيف معلومة، وغيابه لا يعطّل شيئًا
+            return booking.held_at
+              ? '<span class="badge badge-green">تمت الاستشارة</span>'
+              : '<span class="badge badge-gray">لم تُؤكَّد</span>';
+          }
+          if(!booking) return '<span class="badge badge-teal">متاح للحجز</span>';
+          if(st <= now)
+            return booking.held_at
+              ? '<span class="badge badge-gold">جارية الآن</span> <span class="badge badge-green">تمت الاستشارة</span>'
+              : '<span class="badge badge-gold">جارية الآن</span>';
+          return '<span class="badge badge-green">محجوزة</span>';
+        })()}
         ${booking && booking.status === "pending" ? `<div style="margin-top:8px;display:flex;gap:6px"><button class="btn btn-primary btn-sm" onclick="confirmBooking('${booking.id}')">تأكيد الحجز</button><button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="cancelBookingByMentor('${booking.id}')">إلغاء</button></div>` : ""}
-        ${booking && booking.status === "confirmed" ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-            <button class="btn btn-outline btn-sm" onclick='openFeedbackModal(${jsArg({bookingId: booking.id, teamId: booking.team_id, teamName: booking.teams?.team_name, startTime: s.start_time, endTime: s.end_time})})'>✓ إنهاء الجلسة + ملاحظات</button>
-            <button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="markNoShow('${booking.id}','no_show_team')">لم يحضر الفريق</button>
-            <button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="cancelBookingByMentor('${booking.id}')">إلغاء الحجز</button>
+        ${booking && booking.status !== "cancelled" ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            ${new Date(s.start_time) <= new Date()
+              ? (booking.held_at
+                 ? `<button class="btn btn-outline btn-sm" onclick="setSessionHeld('${booking.id}', false)">تراجع عن التأكيد</button>`
+                 : `<button class="btn btn-primary btn-sm" onclick="setSessionHeld('${booking.id}', true)">تمت الاستشارة</button>`)
+              : ""}
+            <button class="btn btn-outline btn-sm" onclick='openFeedbackModal(${jsArg({bookingId: booking.id, teamId: booking.team_id, teamName: booking.teams?.team_name, startTime: s.start_time, endTime: s.end_time})})'>ملاحظات الجلسة</button>
+            ${new Date(s.end_time) > new Date()
+              ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="cancelBookingByMentor('${booking.id}')">إلغاء الحجز</button>`
+              : ""}
           </div>` : ""}
         ${!booking ? `<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
             <button class="btn btn-outline btn-sm" onclick='openEditSlotModal(${jsArg({id:s.id, start_time:s.start_time, end_time:s.end_time, is_online:s.is_online, location:s.location})})'>تعديل</button>
@@ -491,12 +963,6 @@ async function saveEditSlot(slotId){
   closeModal();
   renderSlots();
 }
-async function markNoShow(bookingId, statusValue){
-  if(!confirm("متأكد؟ هذا الإجراء يسجّل عدم حضور بشكل نهائي بسجل هذا الموعد.")) return;
-  const { error } = await sb.from("mentor_bookings").update({ status: statusValue }).eq("id", bookingId);
-  if(error){ alert("خطأ: " + error.message); return; }
-  renderSlots();
-}
 async function confirmBooking(bookingId){
   const { error } = await sb.from("mentor_bookings").update({ status: "confirmed" }).eq("id", bookingId);
   if(error){ alert("تعذّر التأكيد: " + error.message); return; }
@@ -505,7 +971,14 @@ async function confirmBooking(bookingId){
 async function cancelBookingByMentor(bookingId){
   if(!confirm("هل أنت متأكد من إلغاء هذا الحجز؟")) return;
   const { error } = await sb.from("mentor_bookings").update({ status: "cancelled" }).eq("id", bookingId);
-  if(error){ alert("تعذّر الإلغاء: " + error.message); return; }
+  if(error){
+    // رسالة القاعدة الخام مربكة — نوضّح المقصود
+    const msg = /يتداخل|overlap/.test(error.message)
+      ? "تعذّر الإلغاء: يوجد موعدان متداخلان في جدولكم. تواصلوا مع الإدارة لحذف أحدهما."
+      : "تعذّر الإلغاء: " + error.message;
+    alert(msg);
+    return;
+  }
   renderSlots();
 }
 
@@ -550,54 +1023,6 @@ function openFeedbackModal({bookingId, teamId, teamName, startTime, endTime}){
       <button class="btn btn-primary" style="flex:1" onclick="saveFeedback('${bookingId}','${teamId}','${startTime}')">حفظ الملاحظة</button>
     </div>
   `);
-}
-function openBulkCloseModal(){
-  const list = window._endedUnclosedBookings || [];
-  if(!list.length){ closeModal(); return; }
-  openModal(`
-    <h3 style="margin:0 0 4px">إقفال ${list.length} جلسة منتهية دفعة واحدة</h3>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
-      ${list.map(b => esc(b.teamName)).join("، ")}
-    </p>
-    <div class="field"><label>ملاحظة عامة (تُضاف لكل الجلسات المُقفلة دفعة واحدة)</label>
-      <textarea id="bulk-fb-notes" rows="3" placeholder="مثال: تم إنهاء جلسات اليوم بشكل طبيعي، بدون ملاحظات خاصة لكل فريق"></textarea>
-      <p class="hint" style="margin-top:4px">لو عندك ملاحظة خاصة لفريق معيّن، الأفضل ترجع تسجّلها له لحاله من القائمة بدل الإقفال الجماعي</p>
-    </div>
-    <div id="bulk-fb-alert" class="alert"></div>
-    <div style="display:flex; gap:10px; margin-top:10px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">إلغاء</button>
-      <button class="btn btn-primary" style="flex:1" onclick="confirmBulkClose()">تأكيد إقفال ${list.length} جلسة</button>
-    </div>
-  `);
-}
-async function confirmBulkClose(){
-  const alertBox = document.getElementById("bulk-fb-alert");
-  alertBox.className = "alert";
-  const notes = document.getElementById("bulk-fb-notes").value.trim() || "تم إقفال الجلسة ضمن إقفال جماعي لجلسات اليوم المنتهية";
-  const list = window._endedUnclosedBookings || [];
-  const now = new Date();
-
-  // إعادة تحقق أخير (دفاعي): نستبعد أي جلسة ما انتهت وقتها فعليًا لو تغيّرت الحالة أثناء فتح النافذة
-  const stillValid = list.filter(b => new Date(b.endTime) < now);
-
-  let successCount = 0, failCount = 0;
-  for(const b of stillValid){
-    const { error: fbError } = await sb.from("mentor_feedback").insert({
-      booking_id: b.bookingId, mentor_user_id: currentUser.id, team_id: b.teamId,
-      notes, team_readiness_score: 3
-    });
-    if(fbError){ failCount++; continue; }
-    const { error: upError } = await sb.from("mentor_bookings").update({ status: "completed" }).eq("id", b.bookingId);
-    if(upError){ failCount++; } else { successCount++; }
-  }
-
-  if(failCount === 0){
-    closeModal();
-  } else {
-    alertBox.textContent = `تم إقفال ${successCount} جلسة، وفشل ${failCount} — حاول تقفلها فرديًا من القائمة`;
-    alertBox.className = "alert error";
-  }
-  renderSlots();
 }
 async function saveFeedback(bookingId, teamId, startTime){
   const alertBox = document.getElementById("fb-alert");
@@ -661,13 +1086,31 @@ async function renderAddSlot(){
 let cachedMentorshipWindow = null;
 async function getMentorshipWindow(){
   if(cachedMentorshipWindow) return cachedMentorshipWindow;
-  const { data } = await sb.from("platform_settings").select("key,value").in("key",["mentorship_start_date","mentorship_end_date"]);
+  const [setRes, daysRes] = await Promise.all([
+    sb.from("platform_settings").select("key,value").in("key",["mentorship_start_date","mentorship_end_date"]),
+    sb.from("program_days").select("day_number, starts_at, ends_at").eq("phase","mentorship").order("day_number")
+  ]);
   const map = {};
-  (data||[]).forEach(r => map[r.key] = r.value);
-  cachedMentorshipWindow = { start: map.mentorship_start_date || null, end: map.mentorship_end_date || null };
+  (setRes.data||[]).forEach(r => map[r.key] = r.value);
+  cachedMentorshipWindow = {
+    start: map.mentorship_start_date || null,
+    end: map.mentorship_end_date || null,
+    days: daysRes.data || []
+  };
   return cachedMentorshipWindow;
 }
 function validateWithinMentorshipWindow(startDate, endDate, win){
+  // لو عُرِّفت أيام، الموعد لازم يقع بالكامل داخل يوم واحد منها
+  if(win.days && win.days.length){
+    const fits = win.days.some(d => startDate >= new Date(d.starts_at) && endDate <= new Date(d.ends_at));
+    if(!fits){
+      const list = win.days
+        .map(d => `اليوم ${d.day_number}: ${fmtDate(d.starts_at)} → ${new Date(d.ends_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})}`)
+        .join(" · ");
+      return `الموعد خارج أيام الإرشاد المحددة (${list})`;
+    }
+    return null;
+  }
   if(win.start && startDate < new Date(win.start)){
     return `الموعد قبل بداية فترة الإرشاد المحددة (${fmtDate(win.start)})`;
   }
@@ -833,6 +1276,6 @@ async function saveNewSlot(){
   }, 800);
 }
 </script>
-<div style="position:fixed;bottom:6px;left:8px;font-size:9.5px;color:#94a3b8;opacity:.55;font-family:monospace;z-index:9999;pointer-events:none">build: seera-r1</div>
+<div style="position:fixed;bottom:6px;left:8px;font-size:9.5px;color:#94a3b8;opacity:.55;font-family:monospace;z-index:9999;pointer-events:none">build: seera-r2</div>
 </body>
 </html>

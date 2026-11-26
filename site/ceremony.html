@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حفل الإعلان | هاكثون السيرة النبوية</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+:root{
+  --navy:#28323C; --navy2:#3A4754; --teal:#B8860B; --teal-l:#F7C30D;
+  --gold:#D9A400; --gold-l:#F7C30D; --muted:#8FA6BC; --line:rgba(255,255,255,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#1B232B}
+body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;color:#fff;
+  -webkit-font-smoothing:antialiased}
+
+/* المسرح: 1536×960 بنسبة ثابتة */
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(1200px 700px at 50% -10%,#3A4754,#1B232B 62%)}
+#stage::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(700px 420px at 50% 108%,rgba(217,164,0,.11),transparent 70%)}
+
+.slide{position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;padding:130px 60px 54px;text-align:center;
+  width:100%;height:100%}
+.slide.on{display:flex}
+.s-intro{padding:54px 70px}
+
+/* الشعارات */
+.logos{display:flex;align-items:center;gap:26px;justify-content:center}
+.logos img{height:46px;width:auto;display:block}
+.logos .sep{width:1px;height:34px;background:var(--line)}
+  /* شعار البرنامج */
+  .brand-mark{width:126px;height:126px;border-radius:29px;overflow:hidden;
+    margin-bottom:32px;animation:up .8s .12s ease both;
+    box-shadow:0 0 62px rgba(217,164,0,.24), 0 14px 44px rgba(0,0,0,.34)}
+  .brand-mark img{width:100%;height:100%;object-fit:contain;display:block}
+  .s-intro .logos{margin-bottom:36px;animation:up .8s ease both}
+
+  .slide-brand{position:absolute;top:30px;right:38px;width:88px;height:88px;
+    border-radius:20px;overflow:hidden;opacity:.95;pointer-events:none}
+  .slide-partners{position:absolute;top:30px;left:38px;display:flex;
+    align-items:center;gap:14px;opacity:.82;pointer-events:none}
+  .slide-partners img{height:34px;width:auto;display:block}
+  .slide-partners .sep{width:1px;height:24px;background:var(--line)}
+  .slide-brand img{width:100%;height:100%;object-fit:contain;display:block}
+
+
+/* الشريحة التمهيدية */
+.s-intro .logos{margin-bottom:44px;animation:up .8s ease both}
+.s-intro h1{font-size:58px;font-weight:800;margin:0 0 14px;letter-spacing:-1px;
+  animation:up .8s .24s ease both;color:#fff;
+  max-width:100%;padding:0 10px;line-height:1.3}
+@supports (background-clip:text) or (-webkit-background-clip:text){
+  .s-intro h1{background:linear-gradient(180deg,#fff 45%,#F3E6B5);
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent}
+}
+.s-intro .rule{width:132px;height:2px;margin:32px auto;animation:up .8s .44s ease both;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.s-intro .hint{font-size:15px;color:var(--muted);animation:pulseOp 2.4s ease-in-out infinite}
+
+/* شريحة الأرقام */
+.s-nums h2{font-size:40px;font-weight:800;margin:0 0 44px;animation:up .7s ease both}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;width:100%;max-width:1060px}
+.nbox{background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.03));
+  border:1px solid var(--line);border-radius:20px;padding:30px 22px;
+  animation:up .7s ease both}
+.nbox .ico{width:52px;height:52px;border-radius:15px;margin:0 auto 16px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(217,164,0,.13);color:var(--teal)}
+.nbox .ico svg{width:26px;height:26px}
+.nbox .n{font-size:52px;font-weight:800;line-height:1;letter-spacing:-1.5px}
+.nbox .l{font-size:15px;color:var(--muted);margin-top:9px}
+
+/* شريحة الفائز */
+.s-win .track-tag{font-size:19px;font-weight:700;color:var(--gold);
+  background:rgba(217,164,0,.14);border:1px solid rgba(217,164,0,.34);
+  padding:9px 26px;border-radius:999px;margin-bottom:38px;
+  animation:up .6s ease both}
+
+.win-body{display:none;flex-direction:column;align-items:center}
+.win-body.on{display:flex;animation:pop .85s cubic-bezier(.2,.9,.3,1.35) both}
+  /* لحظة الترقّب: المسار ظاهر والاسم مخفيّ */
+  .reveal-hint{font-size:19px;color:var(--muted);letter-spacing:.1em;
+    animation:pulseOp 1.6s ease-in-out infinite}
+
+
+.trophy{width:104px;height:104px;border-radius:50%;position:relative;
+  display:flex;align-items:center;justify-content:center;margin-bottom:30px;
+  background:linear-gradient(150deg,var(--gold-l),var(--gold));
+  box-shadow:0 0 0 12px rgba(217,164,0,.1), 0 16px 52px rgba(217,164,0,.42);
+  animation:float 3.2s ease-in-out infinite}
+.trophy svg{width:50px;height:50px;color:#2A1B05;stroke-width:1.5}
+.trophy::after{content:"";position:absolute;inset:-26px;border-radius:50%;
+  background:radial-gradient(circle,rgba(217,164,0,.34),transparent 70%);
+  animation:breathe 3.4s ease-in-out infinite;pointer-events:none}
+
+.rank-lbl{font-size:17px;font-weight:800;color:var(--gold);
+  letter-spacing:.26em;margin-bottom:16px}
+.team-name{font-size:60px;font-weight:800;line-height:1.25;margin-bottom:18px;
+  letter-spacing:-1.4px;color:#fff;text-shadow:0 4px 40px rgba(217,164,0,.34)}
+.proj-name{font-size:27px;color:var(--teal-l);font-weight:600;margin-bottom:16px}
+.proj-desc{font-size:17px;color:#B8C5D3;line-height:1.9;max-width:790px}
+
+/* شريحة الجميع */
+.s-all h2{font-size:38px;font-weight:800;margin:0 0 34px;animation:up .7s ease both}
+/* صف واحد: أربعة فائزين متجاورون للتصوير */
+.all-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  width:100%;max-width:1400px}
+.acard{background:linear-gradient(160deg,rgba(217,164,0,.16),rgba(255,255,255,.035));
+  border:1px solid rgba(217,164,0,.38);border-radius:19px;padding:26px 16px;
+  text-align:center;position:relative;overflow:hidden;animation:up .7s ease both}
+.acard::after{content:"";position:absolute;top:0;bottom:0;width:52%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);
+  animation:sheen 5s ease-in-out infinite;pointer-events:none}
+.acard .medal{width:46px;height:46px;border-radius:50%;margin:0 auto 13px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(150deg,var(--gold-l),var(--gold))}
+.acard .medal svg{width:23px;height:23px;color:#2A1B05}
+.acard .t{font-size:12.5px;color:var(--gold);font-weight:700;margin-bottom:9px;line-height:1.5}
+.acard .n{font-size:21px;font-weight:800;margin-bottom:7px;position:relative;line-height:1.4}
+.acard .p{font-size:13px;color:var(--teal-l);position:relative;line-height:1.6}
+
+/* التحكم */
+.ctrl{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:15px;z-index:60;
+  background:rgba(27,35,43,.82);backdrop-filter:blur(10px);
+  border:1px solid var(--line);border-radius:999px;padding:9px 15px;
+  transition:opacity .4s}
+.ctrl.hide{opacity:0;pointer-events:none}
+.nav{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+  background:rgba(255,255,255,.05);color:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:.18s}
+.nav:hover:not(:disabled){background:var(--teal);color:var(--navy);border-color:var(--teal)}
+.nav:disabled{opacity:.28;cursor:default}
+.nav svg{width:19px;height:19px}
+.dots{display:flex;gap:9px}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.24);
+  cursor:pointer;transition:.24s}
+.dot.on{background:var(--gold);width:26px;border-radius:99px}
+
+.fs{position:fixed;top:22px;left:22px;z-index:60;width:38px;height:38px;
+  border-radius:11px;border:1px solid var(--line);background:rgba(27,35,43,.7);
+  color:var(--muted);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:.18s}
+.fs:hover{color:#fff;border-color:var(--teal)}
+.fs svg{width:17px;height:17px}
+
+/* القصاصات */
+.cfti{position:fixed;top:-16px;width:10px;height:17px;z-index:80;
+  pointer-events:none;animation:fall linear forwards}
+
+@keyframes up{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.84)}to{opacity:1;transform:scale(1)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-11px)}}
+@keyframes breathe{0%,100%{opacity:.45;transform:scale(.92)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes sheen{0%{inset-inline-start:-60%}56%,100%{inset-inline-start:132%}}
+@keyframes pulseOp{0%,100%{opacity:.42}50%{opacity:1}}
+@keyframes fall{to{transform:translateY(108vh) rotate(820deg);opacity:0}}
+
+@media (max-width:1100px){
+  .s-intro h1{font-size:44px} .team-name{font-size:42px}
+  .nums{grid-template-columns:repeat(2,1fr)} .nbox .n{font-size:40px}
+  .all-grid{grid-template-columns:repeat(2,1fr)}
+  .slide{padding:110px 34px 40px}
+  .slide-brand{width:64px;height:64px;top:22px;right:24px}
+  .slide-partners{top:24px;left:24px}
+  .slide-partners img{height:26px}
+  .slide{padding:34px 30px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important}
+}
+  /* الشعاران على الخلفية الداكنة بلون أبيض موحّد */
+  .logos img, .slide-partners img{filter:brightness(0) invert(1); opacity:.92}
+</style>
+</head>
+<body>
+
+<button class="fs" onclick="toggleFs()" title="ملء الشاشة (F)">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+       stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+</button>
+
+<div id="stage"></div>
+
+<div class="ctrl">
+  <button class="nav" id="prev" onclick="show(cur-1)" title="السابق">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+  <div class="dots" id="dots"></div>
+  <button class="nav" id="next" onclick="advance()" title="التالي">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+</div>
+
+<script>
+window.LOGO_ENFATH = "./chair-logo.png";
+window.LOGO_BRAND = "./seera-mark.svg";
+window.LOGO_QASSIM = "./qassim-logo.png";
+</script>
+<script>const IC = {
+  "users": `<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>`,
+  "lightbulb": `<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/>`,
+  "route": `<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>`,
+  "messages": `<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>`,
+  "compass": `<path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/><circle cx="12" cy="12" r="10"/>`,
+  "scale": `<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1"/><path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>`,
+  "trophy": `<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>`,
+  "award": `<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>`,
+  "sparkles": `<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>`,
+  "chevron-right": `<path d="m9 18 6-6-6-6"/>`,
+  "chevron-left": `<path d="m15 18-6-6 6-6"/>`,
+  "maximize": `<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>`
+};
+
+const sb = supabase.createClient(window.SEERA_CONFIG.SUPABASE_URL, window.SEERA_CONFIG.SUPABASE_ANON_KEY);
+
+const esc = t => String(t ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ico = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
+
+let slides = [], cur = 0, winners = [];
+
+/* ── التنقّل ── */
+// شريحة الفائز على مرحلتين: المسار أولًا، ثم الاسم بضغطة.
+function advance(){
+  const s = slides[cur];
+  const body = document.getElementById(`wb-${cur}`);
+  if(s?.type === "winner" && body && !body.classList.contains("on")){
+    body.classList.add("on");
+    const hint = body.parentElement?.querySelector(".reveal-hint");
+    if(hint) hint.style.display = "none";
+    confetti();
+    return;                      // لا ننتقل: كشفنا الاسم فقط
+  }
+  show(cur + 1);
+}
+
+function show(i){
+  if(i < 0 || i >= slides.length) return;
+  cur = i;
+  document.querySelectorAll(".slide").forEach((s, k) => s.classList.toggle("on", k === i));
+  document.querySelectorAll(".dot").forEach((d, k) => d.classList.toggle("on", k === i));
+  document.getElementById("prev").disabled = i === 0;
+  document.getElementById("next").disabled = i === slides.length - 1;
+
+  const s = slides[i];
+  // القصاصات مرة واحدة لكل شريحة — بسجلّ مستقل لا على body
+  window._celebrated = window._celebrated || new Set();
+  if(s.type === "all" && !window._celebrated.has(i)){
+    window._celebrated.add(i);
+    confetti();
+  }
+}
+
+
+/* ── القصاصات ── */
+function confetti(){
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const colors = ["#D9A400","#F7C30D","#B8860B","#F7C30D","#ffffff"];
+  for(let i = 0; i < 80; i++){
+    const d = document.createElement("div");
+    d.className = "cfti";
+    d.style.left = Math.random() * 100 + "vw";
+    d.style.background = colors[i % colors.length];
+    d.style.animationDuration = (2.8 + Math.random() * 2.6) + "s";
+    d.style.animationDelay = (Math.random() * 1.4) + "s";
+    d.style.opacity = 0.55 + Math.random() * 0.45;
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 7200);
+  }
+}
+
+/* ── البناء ── */
+async function build(){
+  const stage = document.getElementById("stage");
+
+  const [st, wn] = await Promise.all([
+    sb.rpc("get_ceremony_stats"),
+    sb.rpc("get_winners")
+  ]);
+
+  const s = st.data || {};
+  winners = wn.data || [];
+
+  const LOGOS = `<div class="logos">
+    <img src="${window.LOGO_ENFATH}" alt="كرسي الشيخ عبدالله بن صالح الراشد الحميد">
+    <div class="sep"></div>
+    <img src="${window.LOGO_QASSIM}" alt="جامعة القصيم">
+  </div>`;
+
+  let html = "";
+  slides = [];
+
+  // ١ ── تمهيدية
+  slides.push({ type: "intro" });
+  html += `<div class="slide s-intro">
+    ${LOGOS}
+    <div class="brand-mark"><img src="${window.LOGO_BRAND}" alt="هاكثون السيرة النبوية"></div>
+    <h1>الفائزون في هاكثون السيرة النبوية</h1>
+    <div class="rule"></div>
+    <div class="hint">اضغط ← للبدء</div>
+  </div>`;
+
+  // ٢ ── الأرقام
+  const NUMS = [
+    ["users",     s.participants,        "مشاركًا"],
+    ["lightbulb", s.projects,            "مشروعًا"],
+    ["route",     s.tracks,              "مسارات"],
+    ["messages",  s.mentorship_sessions, "جلسة إرشاد"],
+    ["compass",   s.mentors,             "مرشدًا"],
+    ["scale",     s.judges,              "محكّمًا"],
+  ];
+  slides.push({ type: "nums" });
+  html += `<div class="slide s-nums">
+    <h2>البرنامج بالأرقام</h2>
+    <div class="nums">
+      ${NUMS.map(([i, n, l], k) => `
+        <div class="nbox" style="animation-delay:${0.08 * k + 0.1}s">
+          <div class="ico">${ico(i)}</div>
+          <div class="n">${n ?? 0}</div>
+          <div class="l">${l}</div>
+        </div>`).join("")}
+    </div>
+  </div>`;
+
+  // ٣ ── شريحة لكل فائز
+  winners.forEach((w, k) => {
+    const idx = slides.length;
+    slides.push({ type: "winner" });
+    html += `<div class="slide s-win">
+      <div class="track-tag">${esc(w.المسار || "")}</div>
+      <div class="reveal-hint">اضغط ← لإعلان الفائز</div>
+      <div class="win-body" id="wb-${idx}">
+        <div class="trophy">${ico("trophy")}</div>
+        <div class="rank-lbl">المركز الأول</div>
+        <div class="team-name">${esc(w.الفريق)}</div>
+        ${w.المشروع ? `<div class="proj-name">${esc(w.المشروع)}</div>` : ""}
+        ${w.الوصف ? `<div class="proj-desc">${esc(w.الوصف)}</div>` : ""}
+      </div>
+    </div>`;
+  });
+
+  // ٤ ── الجميع
+  slides.push({ type: "all" });
+  html += `<div class="slide s-all">
+    <h2>الفائزون في هاكثون السيرة النبوية</h2>
+    <div class="all-grid">
+      ${winners.map((w, k) => `
+        <div class="acard" style="animation-delay:${0.1 * k + 0.15}s">
+          <div class="medal">${ico("award")}</div>
+          <div class="t">${esc(w.المسار || "")}</div>
+          <div class="n">${esc(w.الفريق)}</div>
+          ${w.المشروع ? `<div class="p">${esc(w.المشروع)}</div>` : ""}
+        </div>`).join("")}
+    </div>
+  </div>`;
+
+  stage.innerHTML = html;
+
+  // شعار البرنامج على كل شريحة عدا التمهيدية — هوية ثابتة
+  document.querySelectorAll(".slide:not(.s-intro)").forEach(el => {
+    // شعار البرنامج يمينًا، والشريكان يسارًا — هوية كاملة
+    const b = document.createElement("div");
+    b.className = "slide-brand";
+    b.innerHTML = `<img src="${window.LOGO_BRAND}" alt="">`;
+    el.appendChild(b);
+
+    const p = document.createElement("div");
+    p.className = "slide-partners";
+    p.innerHTML = `<img src="${window.LOGO_ENFATH}" alt="">
+      <span class="sep"></span>
+      <img src="${window.LOGO_QASSIM}" alt="">`;
+    el.appendChild(p);
+  });
+
+  // النقاط
+  document.getElementById("dots").innerHTML = slides
+    .map((_, i) => `<div class="dot" onclick="show(${i})"></div>`).join("");
+
+  show(0);
+}
+
+/* ── لوحة المفاتيح ── */
+document.addEventListener("keydown", e => {
+  if(e.key === "ArrowLeft"  || e.key === " ") { e.preventDefault(); advance(); }
+  if(e.key === "ArrowRight") show(cur - 1);
+  if(e.key === "f" || e.key === "F") toggleFs();
+  if(e.key === "Home") show(0);
+  if(e.key === "End")  show(slides.length - 1);
+});
+
+function toggleFs(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+  else document.exitFullscreen?.();
+}
+
+// إخفاء التحكم عند سكون الفأرة
+let hideT;
+function wake(){
+  document.querySelector(".ctrl")?.classList.remove("hide");
+  clearTimeout(hideT);
+  hideT = setTimeout(() => document.querySelector(".ctrl")?.classList.add("hide"), 3500);
+}
+document.addEventListener("mousemove", wake);
+wake();
+
+build();
+</script>
+
+<div style="position:fixed;bottom:6px;right:10px;font-size:9.5px;color:rgba(255,255,255,.16)">
+  build: seera-r2
+</div>
+</body>
+</html>

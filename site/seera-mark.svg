@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="هاكثون السيرة النبوية">
+  <rect width="64" height="64" rx="16" fill="#28323C"/>
+  <g fill="none" stroke="#F7C30D" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 21.5c-3.6-2.7-8.6-3.9-14-3.6v24.2c5.4-.3 10.4.9 14 3.6 3.6-2.7 8.6-3.9 14-3.6V17.9c-5.4-.3-10.4.9-14 3.6z"/>
+    <path d="M32 21.5v24.2"/>
+    <path d="M22.5 26.5c2.3.1 4.5.6 6 1.4M22.5 32.5c2.3.1 4.5.6 6 1.4M41.5 26.5c-2.3.1-4.5.6-6 1.4M41.5 32.5c-2.3.1-4.5.6-6 1.4"/>
+  </g>
+</svg>

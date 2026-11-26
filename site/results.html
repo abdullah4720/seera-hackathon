@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>هاكثون السيرة النبوية — النتائج</title>
+<link rel="icon" href="./seera-mark.svg">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  :root{--navy:#28323C;--teal:#B8860B;--teal-soft:#F7C30D;--gold:#D9A400;--muted:#8FA6BC}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'IBM Plex Sans Arabic',sans-serif;color:#fff;min-height:100vh;
+    background:#28323C;
+    background-image:
+      radial-gradient(ellipse 900px 520px at 50% -10%,rgba(217,164,0,.28) 0%,rgba(217,164,0,0) 60%),
+      radial-gradient(ellipse 1100px 700px at 50% 110%,rgba(217,164,0,.16) 0%,rgba(217,164,0,0) 60%),
+      linear-gradient(160deg,#3A4754 0%,#28323C 46%,#161C22 100%);
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 20px 70px}
+
+  header{text-align:center;margin-bottom:34px}
+  .brand{
+    width:168px;height:168px;margin:0 auto 18px;border-radius:22px;
+    
+    box-shadow:0 18px 46px rgba(0,0,0,.42), 0 0 80px rgba(217,164,0,.22);
+  }
+  .brand img{width:100%;height:100%;object-fit:contain;border-radius:14px;display:block}
+
+  .logos{display:flex;align-items:center;justify-content:center;gap:26px;margin-bottom:24px;opacity:.9}
+  .logos img{filter:brightness(1.05)}
+  .logos img{height:44px;width:auto;object-fit:contain}
+  .logos .sep{width:1px;height:32px;background:rgba(255,255,255,.25)}
+  h1{font-size:clamp(25px,5vw,38px);font-weight:800;margin-bottom:6px}
+  .sub{color:var(--teal-soft);font-size:14.5px;font-weight:500}
+
+  .live{
+    display:inline-flex;align-items:center;gap:9px;margin-top:16px;
+    padding:7px 18px;border-radius:999px;
+    background:rgba(217,164,0,.14);border:1px solid rgba(217,164,0,.4);
+    color:var(--teal-soft);font-size:13px;font-weight:700;
+  }
+  .live .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(217,164,0,.7)}
+    70%{box-shadow:0 0 0 11px rgba(217,164,0,0)}
+    100%{box-shadow:0 0 0 0 rgba(217,164,0,0)}
+  }
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:26px}
+  .stat{
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.12);
+    border-radius:16px;padding:22px 20px;
+  }
+  .stat .label{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  .stat .val{font-size:38px;font-weight:800;line-height:1;color:var(--teal)}
+  .stat .val small{font-size:13px;color:var(--muted);font-weight:500;margin-inline-start:5px}
+  .stat .note{font-size:11.5px;color:var(--muted);margin-top:8px}
+
+  .bar{height:8px;background:rgba(255,255,255,.1);border-radius:5px;overflow:hidden;margin-top:12px}
+  .bar div{height:100%;background:linear-gradient(90deg,var(--teal),var(--teal-soft));transition:width .6s}
+
+  .notice{
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+    border-radius:16px;padding:34px 26px;text-align:center;color:#C4D2E0;line-height:2;
+  }
+  .notice strong{display:block;font-size:18px;color:#fff;margin-bottom:8px}
+
+  /* الفائزون */
+  /* ══ الفائزون ══ */
+  .win-intro{display:flex;align-items:center;gap:18px;margin:6px 0 30px;
+    animation:fadeUp .7s ease both}
+  .wi-line{flex:1;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(217,164,0,.55),transparent)}
+  .wi-txt{font-size:15px;font-weight:800;color:var(--gold);letter-spacing:.24em;
+    white-space:nowrap}
+
+  .winners{display:grid;gap:22px;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+
+  .winner{
+    background:linear-gradient(165deg,rgba(217,164,0,.19),rgba(255,255,255,.04) 60%);
+    border:1px solid rgba(217,164,0,.42);border-radius:22px;
+    padding:34px 26px 30px;position:relative;overflow:hidden;
+    text-align:center;
+    animation:winIn .75s cubic-bezier(.2,.9,.3,1.3) both;
+  }
+
+  /* وميض يمرّ على البطاقة */
+  .winner::after{
+    content:"";position:absolute;top:0;bottom:0;width:55%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.15),transparent);
+    animation:sheen 4.5s ease-in-out infinite;pointer-events:none;
+  }
+  /* هالة تتنفّس خلف البطاقة */
+  .w-glow{position:absolute;inset:-42% 30%;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle,rgba(217,164,0,.3),transparent 68%);
+    animation:pulse 3.6s ease-in-out infinite}
+
+  .w-trophy{width:62px;height:62px;margin:0 auto 18px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;position:relative;
+    background:linear-gradient(150deg,#F7C30D,#D9A400);
+    box-shadow:0 0 0 7px rgba(217,164,0,.13), 0 8px 26px rgba(217,164,0,.36);
+    animation:float 3.2s ease-in-out infinite}
+  .w-trophy svg{width:29px;height:29px;color:#2A1B05}
+
+  .winner .track{display:inline-block;font-size:11.5px;font-weight:700;
+    color:var(--gold);background:rgba(217,164,0,.16);
+    padding:5px 15px;border-radius:999px;margin-bottom:14px;position:relative}
+  .winner .crown{font-size:12px;color:var(--gold);font-weight:800;
+    letter-spacing:.2em;margin-bottom:9px;position:relative}
+  .winner .team{font-size:clamp(21px,3.6vw,28px);font-weight:800;
+    line-height:1.35;margin-bottom:11px;position:relative;
+    color:#fff;
+    text-shadow:0 2px 18px rgba(217,164,0,.3)}
+  @supports (-webkit-background-clip:text) or (background-clip:text){
+    .winner .team{
+      background:linear-gradient(180deg,#fff 30%,#E4D3B0);
+      -webkit-background-clip:text;background-clip:text;
+      -webkit-text-fill-color:transparent;
+      text-shadow:none}
+  }
+  .winner .proj{font-size:14.5px;color:var(--teal-soft);font-weight:600;
+    margin-bottom:11px;position:relative}
+  .winner .desc{font-size:12.5px;color:#B8C5D3;line-height:1.9;position:relative;
+    max-width:100%;overflow-wrap:break-word}
+
+  @keyframes winIn{
+    from{opacity:0;transform:translateY(28px) scale(.94)}
+    to{opacity:1;transform:none}}
+  @keyframes sheen{
+    0%{inset-inline-start:-60%}
+    55%,100%{inset-inline-start:130%}}
+  @keyframes pulse{
+    0%,100%{opacity:.5;transform:scale(.9)}
+    50%{opacity:1;transform:scale(1.06)}}
+  @keyframes float{
+    0%,100%{transform:translateY(0)}
+    50%{transform:translateY(-7px)}}
+  @keyframes fadeUp{
+    from{opacity:0;transform:translateY(14px)}
+    to{opacity:1;transform:none}}
+
+  /* قصاصات الاحتفال */
+  .cfti{position:fixed;top:-14px;width:9px;height:15px;z-index:9999;
+    pointer-events:none;animation:fall linear forwards}
+  @keyframes fall{
+    to{transform:translateY(105vh) rotate(760deg);opacity:0}}
+
+  @media (prefers-reduced-motion:reduce){
+    .winner,.win-intro{animation:none}
+    .winner::after,.w-glow,.w-trophy{animation:none}
+    .cfti{display:none}
+  }
+
+  footer{text-align:center;margin-top:44px;color:var(--muted);font-size:12.5px;line-height:2}
+  .refresh{font-size:11.5px;color:var(--muted);text-align:center;margin-top:18px}
+  /* الشعاران على الخلفية الداكنة بلون أبيض موحّد */
+  .logos img{filter:brightness(0) invert(1); opacity:.92}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logos" style="margin-top:0;margin-bottom:26px">
+      <img src="./chair-logo.png" alt="كرسي الشيخ عبدالله بن صالح الراشد الحميد" style="height:32px">
+      <div class="sep" style="height:24px"></div>
+      <img src="./qassim-logo.png" alt="جامعة القصيم" style="height:32px">
+    </div>
+    <div class="brand"><img src="./seera-mark.svg" alt="هاكثون السيرة النبوية"></div>
+    <div id="live-badge"></div>
+  </header>
+
+  <div id="content"><div class="notice">جاري التحميل...</div></div>
+
+  <div class="refresh" id="refresh-note"></div>
+
+  <footer>هاكثون السيرة النبوية — جامعة القصيم — كرسي الشيخ عبدالله بن صالح الراشد الحميد لخدمة السيرة النبوية</footer>
+</div>
+
+<script>
+const sb = supabase.createClient(window.SEERA_CONFIG.SUPABASE_URL, window.SEERA_CONFIG.SUPABASE_ANON_KEY);
+
+function esc(str){
+  if(str == null) return "";
+  return String(str).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+function jsArg(v){
+  return JSON.stringify(v === undefined ? null : v).replace(/[&'<>]/g, c => "\\u" + c.charCodeAt(0).toString(16).padStart(4,"0"));
+}
+
+function statCard(label, val, note, extra){
+  return `<div class="stat">
+    <div class="label">${esc(label)}</div>
+    <div class="val" style="white-space:nowrap">${val}</div>
+    ${note ? `<div class="note">${note}</div>` : ""}
+    ${extra || ""}
+  </div>`;
+}
+
+// العد التنازلي لانتهاء التحكيم
+function remaining(iso){
+  if(!iso) return null;
+  const diff = new Date(iso).getTime() - Date.now();
+  if(diff <= 0) return null;
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  // الأرقام وسط نص عربي تختلط ترتيبًا؛ نعزل كل جزء بـbdi
+  const B = (n, unit) => `<bdi>${n}</bdi> ${unit}`;
+  if(d > 0) return `${B(d,"يوم")} · ${B(h,"ساعة")}`;
+  if(h > 0) return `${B(h,"ساعة")} · ${B(m,"دقيقة")}`;
+  return B(m, "دقيقة");
+}
+
+async function load(){
+  const box = document.getElementById("content");
+  const badge = document.getElementById("live-badge");
+
+  const { data: stats, error } = await sb.rpc("get_live_stats");
+  if(error){
+    box.innerHTML = `<div class="notice"><strong>تعذّر التحميل</strong>${esc(error.message)}</div>`;
+    return;
+  }
+
+  // بعد الإعلان: الفائزون فقط
+  if(stats?.published){
+    const { data: winners } = await sb.rpc("get_winners");
+    badge.innerHTML = "";
+
+    if(winners && winners.length){
+      box.innerHTML = `
+        <div class="win-intro">
+          <div class="wi-line"></div>
+          <div class="wi-txt">الفائزون</div>
+          <div class="wi-line"></div>
+        </div>
+        <div class="winners">
+        ${winners.map((w, i) => `<div class="winner" style="animation-delay:${i * 0.16}s">
+          <div class="w-glow"></div>
+          <div class="w-trophy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+              <path d="M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+              <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+            </svg>
+          </div>
+          <div class="track">${esc(w.المسار || "")}</div>
+          <div class="crown">المركز الأول</div>
+          <div class="team">${esc(w.الفريق)}</div>
+          ${w.المشروع ? `<div class="proj">${esc(w.المشروع)}</div>` : ""}
+          ${w.الوصف ? `<div class="desc">${esc(w.الوصف)}</div>` : ""}
+        </div>`).join("")}
+        </div>`;
+      launchConfetti();
+      document.getElementById("refresh-note").textContent = "";
+      return;
+    }
+
+    box.innerHTML = `<div class="notice">
+      <strong>لم تُعتمد نتائج بعد</strong>
+      أُعلنت النتائج لكن لم يُعتمد أي مركز أول حتى الآن.
+    </div>`;
+    return;
+  }
+
+  // قبل الإعلان: البث المباشر
+  badge.innerHTML = `<div class="live"><span class="dot"></span>مباشر · LIVE</div>`;
+
+  const pct = Number(stats.progress_pct || 0);
+  const left = remaining(stats.judging_ends_at);
+
+  box.innerHTML = `
+    <div class="stats">
+      ${statCard("المشاريع المشاركة", stats.teams || 0)}
+      ${statCard("المشاركون", stats.participants || 0)}
+      ${statCard("المسارات", stats.tracks || 0)}
+      ${statCard("المحكّمون", stats.judges || 0)}
+      ${statCard("نسبة إنجاز التحكيم", pct + '<small>%</small>',
+        `<bdi>${stats.scores_done || 0}</bdi> من <bdi>${stats.scores_expected || 0}</bdi> تقييمًا`,
+        `<div class="bar"><div style="width:${Math.min(pct,100)}%"></div></div>`)}
+      ${statCard("الوقت المتبقي للتحكيم", left || "—",
+        left ? "حتى إغلاق التحكيم" : "انتهت فترة التحكيم")}
+    </div>
+
+    <div class="notice">
+      <strong>الفعالية مستمرة</strong>
+      تُعلَن أسماء الفائزين حصريًا في ختام الفعالية.
+    </div>`;
+
+  document.getElementById("refresh-note").textContent = "تُحدَّث البيانات تلقائيًا كل 30 ثانية";
+}
+
+/* قصاصات الاحتفال — مرة واحدة عند أول عرض */
+function launchConfetti(){
+  if(window._cftiDone) return;
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  window._cftiDone = true;
+
+  const colors = ["#D9A400", "#F7C30D", "#B8860B", "#F7C30D", "#ffffff"];
+  for(let i = 0; i < 70; i++){
+    const d = document.createElement("div");
+    d.className = "cfti";
+    d.style.left = Math.random() * 100 + "vw";
+    d.style.background = colors[i % colors.length];
+    d.style.animationDuration = (2.6 + Math.random() * 2.4) + "s";
+    d.style.animationDelay = (Math.random() * 1.6) + "s";
+    d.style.opacity = 0.5 + Math.random() * 0.5;
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 7000);
+  }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+<div style="position:fixed;bottom:6px;left:8px;font-size:9.5px;color:rgba(255,255,255,.28);font-family:monospace;z-index:9999;pointer-events:none">build: seera-r2</div>
+</body>
+</html>

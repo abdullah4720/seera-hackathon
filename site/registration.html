@@ -262,6 +262,111 @@
   .cert-item:last-child{border-bottom:none;}
   .cert-item h4{margin:0 0 4px; font-size:14px;}
   .cert-item .meta{font-size:12px; color:var(--muted);}
+
+  /* ---- منقول من ابتكار إنفاذ: الإرشاد والتسليمات ولجنة التحكيم ---- */
+  .empty-illustration .icon-wrap i, .empty-illustration .icon-wrap svg{width:28px; height:28px; color:var(--muted);}
+  @media (max-width:640px){.program-mark{width:92px;height:92px;border-radius:18px;margin-bottom:16px}}
+  /* التسليمات المطلوبة */
+  .bar-track{height:8px;background:var(--border-light,#EEF0F5);border-radius:5px;overflow:hidden}
+  /* حالة موعد الإرشاد */
+  .bk-row{position:relative;padding-right:14px;border-right:3px solid transparent}
+  .bk-tag{font-size:11px;font-weight:700;padding:3px 11px;border-radius:8px}
+  /* بطاقة الموعد — الشارة والإلغاء في صف مستقل لا يتراكبان */
+  .bk-card{border:1px solid var(--border);border-right-width:3px;border-radius:11px;
+    padding:13px 15px;margin-bottom:10px;background:#fff}
+  body.dark .bk-card{background:rgba(255,255,255,.04)}
+  .bk-head{display:flex;align-items:center;justify-content:space-between;
+    gap:10px;margin-bottom:9px;min-height:22px}
+  .bk-cancel{background:none;border:0;padding:0;cursor:pointer;
+    font-family:inherit;font-size:12px;font-weight:600;color:#C0392B}
+  .bk-cancel:hover{text-decoration:underline}
+  /* تبويبات الإرشاد */
+  .mtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .mtab{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:11px;
+    border:1px solid var(--border);background:#fff;color:var(--muted);
+    font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:.18s}
+  .mtab:hover{border-color:var(--teal);color:var(--navy)}
+  .mtab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+  .mtab i,.mtab svg{width:15px;height:15px}
+  .mtab .cnt{background:rgba(0,0,0,.08);padding:1px 8px;border-radius:20px;font-size:11.5px}
+  .mtab.active .cnt{background:rgba(255,255,255,.2)}
+  body.dark .mtab{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.14)}
+  body.dark .mtab.active{background:var(--teal);border-color:var(--teal);color:#28323C}
+  .bk-upcoming{border-right-color:var(--teal)}
+  .bk-upcoming .bk-tag{background:rgba(217,164,0,.13);color:#8A6A00}
+  .bk-live{border-right-color:#D9A400;background:rgba(217,164,0,.05)}
+  .bk-live .bk-tag{background:#FBF3E2;color:#8A6A1E}
+  .bk-ended{border-right-color:var(--border);opacity:.82}
+  .bk-ended .bk-tag{background:#F0F1F5;color:#6B7A99}
+  .bk-cancelled{border-right-color:#C0392B;opacity:.7}
+  .bk-cancelled .bk-tag{background:#FDECEB;color:#C0392B}
+  body.dark .bk-live{background:rgba(217,164,0,.1)}
+  /* قائمة المرشدين — مطويّة لتناسب العدد الكبير */
+  .mn-list{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .mn-item{border-bottom:1px solid var(--border)}
+  .mn-item:last-child{border-bottom:none}
+  .mn-item summary{cursor:pointer;list-style:none;display:block}
+  .mn-item summary::-webkit-details-marker{display:none}
+  .mn-item summary:hover{background:#F7F9FB}
+  body.dark .mn-item summary:hover{background:rgba(255,255,255,.04)}
+  .mn-row{display:flex;align-items:center;padding:13px 14px}
+  .mn-ava{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;
+    margin-left:12px;margin-inline-end:12px;border:1px solid var(--border)}
+  .mn-ini{display:flex;align-items:center;justify-content:center;
+    background:var(--teal);color:#28323C;font-weight:800;font-size:16px}
+  .mn-main{flex:1;min-width:0}
+  .mn-name{display:block;font-weight:700;font-size:14px;line-height:1.4}
+  .mn-spec{display:block;font-size:12px;color:var(--muted);margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mn-slots{font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:7px;
+    background:rgba(217,164,0,.12);color:#8A6A00;white-space:nowrap;flex-shrink:0}
+  .mn-slots.none{background:#F0F1F5;color:var(--muted)}
+  .mn-body{padding:0 14px 15px 14px;animation:mnf .22s ease}
+  @keyframes mnf{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .mn-line{font-size:12.5px;color:var(--ink);margin-bottom:5px}
+  .mn-line span{display:inline-block;min-width:56px;color:var(--muted);font-size:11.5px}
+  .mn-bio{font-size:12.5px;color:var(--muted);line-height:1.75;margin:8px 0 0}
+  .mn-item[open] summary{background:#F7F9FB}
+  body.dark .mn-item[open] summary{background:rgba(255,255,255,.04)}
+  .mentor-card{border:1px solid var(--border);border-radius:12px;padding:14px;background:#fff;transition:.2s}
+  .mentor-card:hover{border-color:var(--teal);box-shadow:0 6px 18px rgba(40,50,60,.08)}
+  body.dark .mentor-card{background:rgba(255,255,255,.04)}
+  .mentor-head{display:flex;align-items:flex-start;margin-bottom:10px}
+  .mentor-avatar{width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0;
+                 margin-left:11px;margin-inline-end:11px;border:1px solid var(--border)}
+  .mentor-initial{display:flex;align-items:center;justify-content:center;
+                  background:var(--teal);color:#28323C;font-weight:800;font-size:19px}
+  .mentor-name{font-weight:700;font-size:14.5px;line-height:1.4}
+  .mentor-role{font-size:12px;color:var(--muted);margin-top:2px}
+  .mentor-org{font-size:11.5px;color:var(--muted)}
+  .mentor-tag{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 10px;
+              border-radius:999px;background:rgba(217,164,0,.12);color:#8A6A00;margin-bottom:8px}
+  .mentor-bio{font-size:12.5px;color:var(--muted);line-height:1.75;margin:0 0 10px}
+  .mentor-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
+               font-size:11.5px;color:var(--muted);border-top:1px solid var(--border-light,#EEF0F5);padding-top:8px}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--teal),#F7C30D);transition:width .5s}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .dv-form .field{margin-bottom:10px}
+  .tl-dot.done i, .tl-dot.done svg{width:11px;height:11px;color:#fff;}
+  /* لجنة التحكيم */
+  .jc-line{display:flex;align-items:center;font-size:12.5px;color:#8A6A00}
+  .jc-line svg{width:15px;height:15px;flex-shrink:0;
+    margin-left:9px;margin-inline-end:9px}
+  .jc-line strong{font-weight:700;margin-right:4px;margin-inline-start:4px}
+  body.dark .jc-line{color:#F7C30D}
+  .jc-line{flex-wrap:wrap;gap:6px}
+  .jc-line>span:first-of-type{flex:1;min-width:0}
+  .jc-line .jc-state{font-size:10.5px;font-weight:700;padding:2px 10px;
+    border-radius:6px;background:rgba(0,0,0,.06);color:var(--muted);white-space:nowrap}
+  .jc-line.live{color:#8A6A1E}
+  .jc-line.live svg{color:var(--gold)}
+  .jc-line.live .jc-state{background:rgba(217,164,0,.18);color:#8A6A1E}
+  .jc-line.done .jc-state{background:rgba(217,164,0,.18);color:#8A6A00}
+  body.dark .jc-line .jc-state{background:rgba(255,255,255,.1);color:#B8C5D3}
+  .home-card-icon i, .home-card-icon svg{width:22px; height:22px; color:var(--accent);}
+  .back-to-home i, .back-to-home svg{width:15px; height:15px;}
+  .section-heading-icon i, .section-heading-icon svg{width:19px; height:19px; color:var(--accent);}
+  .dash-tab i, .dash-tab svg{width:14px; height:14px; flex-shrink:0;}
 </style>
 <script src="config.js"></script>
 <script src="cert.js"></script>
@@ -1026,16 +1131,17 @@ const DASH_SECTIONS = {
   ]},
   certs: { label:"الشهادات", icon:"award", color:"var(--teal)", tabs:[
     { t:"certs", label:"الشهادات", icon:"award" },
+    { t:"surveys", label:"الاستبيانات", icon:"clipboard-list" },
   ]},
-  updates: { label:"التحديثات", icon:"megaphone", color:"#C99A00", tabs:[
+  updates: { label:"التحديثات", icon:"megaphone", color:"#A67C00", tabs:[
     { t:"updates", label:"التحديثات", icon:"megaphone" },
   ]},
   files: { label:"الملفات", icon:"folder-open", color:"#0D9488", tabs:[
     { t:"files", label:"الملفات", icon:"folder-open" },
+    { t:"deliverables", label:"التسليمات المطلوبة", icon:"upload" },
   ]},
   account: { label:"حسابي", icon:"circle-user", color:"#6B7A99", tabs:[
     { t:"profile", label:"ملفي الشخصي", icon:"user-round" },
-    { t:"surveys", label:"الاستبيانات", icon:"clipboard-list" },
   ]},
 };
 
@@ -1043,7 +1149,11 @@ async function renderDashHome(membership){
   const box = document.getElementById("dash-body");
   const team = membership?.teams;
 
+  const jcInfo = await fetchMyCommittee(membership?.team_id);
+
   box.innerHTML = `
+    ${jcInfo?.اللجنة ? `<div class="card" style="padding:13px 16px;margin-bottom:14px">
+      ${jcLineHtml(jcInfo)}</div>` : ""}
     <div class="home-grid">
       ${Object.entries(DASH_SECTIONS).filter(([key]) => key !== 'account').map(([key, s]) => `
         <button class="home-card" data-section="${key}" style="--accent:${s.color}">
@@ -1134,10 +1244,11 @@ async function renderDashSection(membership){
   else if(dashTab === "chat") renderChatTab(membership);
   else if(dashTab === "prep") renderPrepTab(membership);
   else if(dashTab === "mentorship") renderMentorshipTab(membership);
-  else if(dashTab === "judging") renderJudgingCriteriaTab(membership);
+  else if(dashTab === "judging") renderJudgingCriteriaTab();
   else if(dashTab === "certs") renderCertsTab();
   else if(dashTab === "updates") renderUpdatesTab(membership);
   else if(dashTab === "files") renderFilesTab(membership);
+  else if(dashTab === "deliverables") renderDeliverablesTab(membership);
   else if(dashTab === "surveys") renderSurveysTab();
   else renderMyProfileTab();
 }
@@ -1505,7 +1616,8 @@ async function renderJudgingCriteriaTab(){
   }
   const { data: criteria } = await sb.from("judging_criteria").select("*").eq("round_id", round.id).order("display_order");
 
-  let html = `<div class="card"><h2>معايير التحكيم</h2><p class="sub">هذه المعايير المعتمدة لتقييم الأفكار — اطّلع عليها قبل يوم الهاكثون بوقت كافٍ</p>
+  let html = `<div class="card"><h2>معايير التحكيم</h2>
+    <p class="sub">هذه المعايير المعتمدة لتقييم الأفكار — اطّلع عليها قبل يوم الهاكثون بوقت كافٍ</p>
     ${(criteria||[]).map(c => `
       <div class="member-row">
         <span>${esc(c.name_ar)}</span>
@@ -1702,21 +1814,40 @@ async function renderMentorshipTab(membership){
     bookingHtml = `<div class="card">
       <h2>مواعيدك الحالية (${cachedTeamBookings.length})</h2>
       ${cachedTeamBookings.map(b => {
-        const [label, cls] = statusLabels[b.status] || ["—","status-pending"];
-        const sessionEnded = b.mentor_slots && new Date(b.mentor_slots.end_time) <= new Date();
+        // الحالة تُحسب من الوقت لا من إغلاق المرشد — أوضح للفريق
+        // وأقل إجراءً على المرشد.
+        const now = new Date();
+        const st = b.mentor_slots ? new Date(b.mentor_slots.start_time) : null;
+        const en = b.mentor_slots ? new Date(b.mentor_slots.end_time)   : null;
+        const sessionEnded = en && en <= now;
+        const live = st && en && st <= now && en > now;
+        const [label, cls] =
+          b.status === "cancelled" ? ["ملغاة", "bk-cancelled"]
+          : sessionEnded           ? ["منتهية", "bk-ended"]
+          : live                   ? ["جارية الآن", "bk-live"]
+          : ["قادمة", "bk-upcoming"];
         return `
-        <div class="member-row" style="align-items:flex-start">
+        <div class="bk-card ${cls}">
+          <div class="bk-head">
+            <span class="bk-tag">${label}</span>
+            ${b.status !== "cancelled" && !sessionEnded
+              ? `<button class="bk-cancel" onclick="cancelMyMentorBooking('${b.id}')">إلغاء الحجز</button>`
+              : ""}
+          </div>
           <div>
             <strong>${fmtDate(b.mentor_slots?.start_time)}</strong> — ${esc(b.mentor_slots?.profiles?.full_name||"مرشد")}<br>
             <span class="hint">${esc(b.mentor_slots?.location || (b.mentor_slots?.is_online ? "عبر الإنترنت" : ""))}</span>
-            ${b.status === "completed" && !ratedBookingIds.has(b.id) ? renderRatingPrompt(b.id, b.mentor_slots?.mentor_user_id, team.id) : ""}
-            ${b.status === "completed" && ratedBookingIds.has(b.id) ? `<p class="hint" style="margin-top:6px">✓ شكرًا على تقييمكم لهذه الجلسة</p>` : ""}
+            ${(() => {
+              // التقييم يعتمد على انتهاء وقت الجلسة لا على إغلاق المرشد لها.
+              // لو انتظرنا الإغلاق، وقد لا يحدث، لضاع التقييم بلا سبب.
+              const ended = b.mentor_slots && new Date(b.mentor_slots.end_time) <= new Date();
+              const ratable = ended && b.status !== "cancelled" && b.status !== "no_show_team";
+              if(!ratable) return "";
+              return ratedBookingIds.has(b.id)
+                ? `<p class="hint" style="margin-top:6px">شكرًا على تقييمكم لهذه الجلسة</p>`
+                : renderRatingPrompt(b.id, b.mentor_slots?.mentor_user_id, team.id);
+            })()}
             ${b.status === "completed" ? `<button class="btn-link" style="font-size:12px;margin-top:4px" onclick='bookFollowUpWithMentor("${b.mentor_slots?.mentor_user_id}", ${jsArg(b.mentor_slots?.profiles?.full_name||"")})'>احجز موعد آخر مع نفس المرشد</button>` : ""}
-          </div>
-          <div style="text-align:left">
-            <span class="status-badge ${cls}">${label}</span>
-            ${b.status !== "completed" && b.status !== "no_show_team" && b.status !== "no_show_mentor" ? `<div style="margin-top:6px"><button class="btn-link" style="color:var(--danger);font-size:12px" onclick="cancelMyMentorBooking('${b.id}')">إلغاء</button></div>` : ""}
-            ${b.status === "confirmed" && sessionEnded ? `<div style="margin-top:6px"><button class="btn-link" style="color:var(--danger);font-size:12px" onclick="markMentorNoShow('${b.id}')">المرشد لم يحضر</button></div>` : ""}
           </div>
         </div>`;
       }).join("")}
@@ -1727,22 +1858,29 @@ async function renderMentorshipTab(membership){
   const mentorshipMode = modeSetting?.value || "self";
 
   if(mentorshipMode === "admin_only"){
-    body.innerHTML = bookingHtml + (cachedTeamBookings.length ? "" : `<div class="card"><h2>الإرشاد</h2><p class="sub">فريق تنسيق البرنامج بيتولى تحديد المرشد المناسب لفريقكم حسب مسار مشروعكم — بيصلكم إشعار فور تحديد الموعد.</p></div>`);
+    body.innerHTML = bookingHtml + (cachedTeamBookings.length ? "" : `<div class="card"><h2>الإرشاد</h2><p class="sub">يتولّى فريق تنسيق البرنامج تحديد المرشد المناسب لفريقكم حسب مسار مشروعكم، وسيصلكم إشعار فور تحديد الموعد.</p></div>`);
     return;
   }
 
-  // بوابة: ما نسمح بحجز جديد إلا بعد تقييم كل الجلسات المكتملة السابقة
-  const unratedCompleted = cachedTeamBookings.filter(b => b.status === "completed" && !ratedBookingIds.has(b.id));
-  if(unratedCompleted.length){
-    body.innerHTML = bookingHtml + `<div class="card" style="background:#fef8ed;border-color:#f0d9a8">
-      <h2 style="margin-bottom:6px">⏸ يرجى تقييم جلستكم الأخيرة أولًا</h2>
-      <p class="sub" style="margin-bottom:0">يجب تقييم جلسة الإرشاد المكتملة أعلاه قبل التمكّن من حجز موعد جديد — يساعدنا ذلك على تحسين جودة الإرشاد المقدَّم</p>
-    </div>`;
-    return;
-  }
+  // التقييم اختياري: كان بوابة تمنع الحجز، فيُحبس الفريق لو تعذّر
+  // عليه التقييم أو نسيه. صار تذكيرًا لطيفًا لا يعطّل شيئًا.
+  const unrated = cachedTeamBookings.filter(b => {
+    const ended = b.mentor_slots && new Date(b.mentor_slots.end_time) <= new Date();
+    return ended && b.status !== "cancelled" && !ratedBookingIds.has(b.id);
+  });
+  const rateReminder = unrated.length
+    ? `<div class="card" style="background:#F2F7F9;border-color:rgba(217,164,0,.28);margin-bottom:14px">
+         <p style="margin:0;font-size:13.5px;color:var(--ink)">
+           لديكم <bdi>${unrated.length}</bdi> جلسة بانتظار التقييم.
+           تقييمكم اختياري ويساعدنا على تحسين جودة الإرشاد.
+         </p>
+       </div>`
+    : "";
 
-  const { data: slots, error } = await sb.from("mentor_slots")
-    .select("id, start_time, end_time, is_online, location, is_booked, track_id, mentor_user_id, profiles(full_name, specialization, current_position, bio, mentor_present, mentor_present_at)")
+  // mentor_present في الاستعلام: مواعيد المرشد لا تظهر حتى يسجّل
+  // المنظّم حضوره، فلا يُحجز موعد مع غائب.
+  const { data: rawSlots, error } = await sb.from("mentor_slots")
+    .select("id, start_time, end_time, is_online, location, is_booked, track_id, mentor_user_id, profiles(full_name, specialization, current_position, bio, is_active, mentor_present, mentor_present_at)")
     .eq("is_booked", false)
     .or(`track_id.is.null,track_id.eq.${team.track_id}`)
     .gte("start_time", new Date().toISOString())
@@ -1753,6 +1891,14 @@ async function renderMentorshipTab(membership){
     return;
   }
 
+  // تحضير المرشدين: لا تظهر إلا مواعيد المرشدين النشطين المسجَّل حضورهم اليوم
+  // (بتوقيت الرياض)، ما لم يُوقَف الربط من الإعدادات — والخادم يرفض غيرها أيضًا (sql/74)
+  const { data: presenceRequired } = await sb.rpc("mentor_presence_required");
+  const riyadhDay = (d) => new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"});
+  const presentToday = (p) => !!(p && p.mentor_present && p.mentor_present_at && riyadhDay(p.mentor_present_at) === riyadhDay(Date.now()));
+  const slots = (rawSlots||[]).filter(s =>
+    s.profiles?.is_active !== false && (presenceRequired === false || presentToday(s.profiles)));
+
   // ترشيح: نطابق تخصص المرشد مع مسار الفريق لإبراز الأنسب
   // (القيم مطابقة تمامًا لقائمة التخصصات الفعلية بنموذج التقديم كمرشد)
   const trackKeywordMap = {
@@ -1762,14 +1908,7 @@ async function renderMentorshipTab(membership){
   const relevantKeywords = trackKeywordMap[team.tracks?.name_ar] || [];
   const isRecommended = (spec) => relevantKeywords.some(k => (spec||"").includes(k));
 
-  // تحضير المرشدين: لا تظهر إلا مواعيد المرشدين المسجَّل حضورهم اليوم (بتوقيت الرياض)
-  // — والخادم يرفض الحجز على غيرها أيضًا (sql/74)
-  const { data: presenceRequired } = await sb.rpc("mentor_presence_required");
-  const riyadhDay = (d) => new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"});
-  const presentToday = (p) => !!(p && p.mentor_present && p.mentor_present_at && riyadhDay(p.mentor_present_at) === riyadhDay(Date.now()));
-  const visibleSlots = presenceRequired === false ? (slots || []) : (slots || []).filter(s => presentToday(s.profiles));
-
-  cachedMentorSlots = visibleSlots.sort((a,b) => (isRecommended(b.profiles?.specialization)?1:0) - (isRecommended(a.profiles?.specialization)?1:0));
+  cachedMentorSlots = (slots || []).sort((a,b) => (isRecommended(b.profiles?.specialization)?1:0) - (isRecommended(a.profiles?.specialization)?1:0));
   const specializations = [...new Set(cachedMentorSlots.map(s => s.profiles?.specialization).filter(Boolean))];
   const mentorNames = [...new Map(cachedMentorSlots.filter(s=>s.mentor_user_id).map(s => [s.mentor_user_id, s.profiles?.full_name])).entries()];
 
@@ -1784,7 +1923,7 @@ async function renderMentorshipTab(membership){
   }
 
   const slotsHtml = !displaySlots.length
-    ? `<div class="card"><h2>المواعيد المتاحة</h2><p class="sub">${followUpMentorFilter ? "لا توجد مواعيد متاحة حاليًا لهذا المرشد" : (presenceRequired === false ? "لا توجد مواعيد إرشاد متاحة حاليًا، تابع لاحقًا" : "لا توجد مواعيد إرشاد متاحة الآن — تظهر المواعيد فور تسجيل حضور المرشدين، تابعوا الصفحة لاحقًا")}</p></div>`
+    ? `<div class="card"><h2>المواعيد المتاحة</h2><p class="sub">${followUpMentorFilter ? "لا توجد مواعيد متاحة حاليًا لهذا المرشد" : "لا توجد مواعيد إرشاد متاحة حاليًا. تظهر المواعيد عند حضور المرشدين وبدء فترة الإرشاد"}</p></div>`
     : `<div class="card">
         <h2>المواعيد المتاحة</h2>
         <p class="sub">مرتّبة حسب الأنسب لمسار فريقكم — يمكنكم حجز أكثر من مرشد بشرط عدم تعارض الأوقات</p>
@@ -1813,9 +1952,320 @@ async function renderMentorshipTab(membership){
         <div id="mentor-slots-list"></div>
       </div>`;
 
-  body.innerHTML = bookingHtml + followUpBanner + slotsHtml;
+  const mentorsHtml = await buildMentorsSection();
+  // ثلاثة أقسام في تبويبات بدل تكديسها رأسيًا — القائمة كانت
+  // تطول فيضيع ما تحتها.
+  const mv = window._mentorView || (cachedTeamBookings.length ? "mine" : "slots");
+  window._mentorView = mv;
+
+  const counts = {
+    mine:  cachedTeamBookings.filter(b => b.status !== "cancelled").length,
+    slots: displaySlots.length,
+    who:   window._mentorCount || 0
+  };
+  const NAV = [
+    ["mine",  "مواعيدك",         "calendar-check"],
+    ["slots", "المواعيد المتاحة", "calendar-plus"],
+    ["who",   "المرشدون",        "users-round"],
+  ];
+  const nav = `<div class="mtabs">${NAV.map(([k, label, icon]) => `
+    <button class="mtab ${mv === k ? "active" : ""}" onclick="setMentorView('${k}')">
+      <i data-lucide="${icon}"></i> ${label}
+      ${counts[k] ? `<span class="cnt">${counts[k]}</span>` : ""}
+    </button>`).join("")}</div>`;
+
+  const pane =
+      mv === "mine"  ? (bookingHtml || `<div class="card"><p class="hint">لا مواعيد محجوزة بعد — اختاروا موعدًا من «المواعيد المتاحة»</p></div>`)
+    : mv === "slots" ? (followUpBanner + slotsHtml)
+    :                  (mentorsHtml || `<div class="card"><p class="hint">لا مرشدين معتمدين بعد</p></div>`);
+
+  body.innerHTML = nav + rateReminder + pane;
+  if(window.lucide) lucide.createIcons();
+  if(window.lucide) lucide.createIcons();
   renderMentorSlotsList(displaySlots, team.id, isRecommended);
 }
+
+/* ---- منقول من ابتكار إنفاذ ---- */
+async function fetchMyCommittee(teamId){
+  if(!teamId) return null;
+  // بلا تخزين مؤقت: الترتيب والحالة يتغيّران من لوحة التحكم
+  // أثناء التحكيم، فالمشارك يرى الجديد بمجرد تحديث الصفحة.
+  const { data } = await sb.from("my_judging_position")
+    .select("*").eq("team_id", teamId).maybeSingle();
+  return data || null;
+}
+
+const JC_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1"/>
+  <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1"/>
+  <path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>`;
+
+function jcLineHtml(c){
+  if(!c?.اللجنة) return "";
+  const pos = c.ترتيبي && c.إجمالي_اللجنة
+    ? ` · ترتيب مشروعكم رقم ${c.ترتيبي} من ${c.إجمالي_اللجنة}`
+    : "";
+  const st = c.الحالة || "";
+  const cls = st === "اكتمل التحكيم" ? "done" : st === "قيد التحكيم" ? "live" : "";
+  return `<div class="jc-line ${cls}">${JC_ICON}
+    <span>سوف يتم تحكيم مشروعكم من <strong>${esc(c.اللجنة)}</strong>${pos}</span>
+    ${st ? `<span class="jc-state">${esc(st)}</span>` : ""}</div>`;
+}
+
+async function buildMentorsSection(){
+  const { data: mentors, error } = await sb.from("mentor_profiles")
+    .select("*").order("مواعيد_متاحة", { ascending: false });
+
+  window._mentorCount = (mentors || []).length;
+  if(error || !mentors || !mentors.length) return "";
+
+  const initials = n => (n || "؟").trim().charAt(0);
+
+  // قائمة مطويّة بدل بطاقات كاملة: مع كثرة المرشدين تصير البطاقات
+  // جدارًا يخفي المواعيد أسفلها. السطر يكفي للاختيار، والتفاصيل
+  // عند الطلب.
+  const row = m => {
+    const avail = m.مواعيد_متاحة || 0;
+    const hasDetail = m.نبذة || m.المنصب || m.الجهة || m.فرق_أرشدها;
+    const head = `
+      <span class="mn-row">
+        ${m.الصورة
+          ? `<img src="${esc(m.الصورة)}" alt="" class="mn-ava">`
+          : `<span class="mn-ava mn-ini">${esc(initials(m.الاسم))}</span>`}
+        <span class="mn-main">
+          <span class="mn-name">${esc(m.الاسم || "مرشد")}</span>
+          ${m.التخصص ? `<span class="mn-spec">${esc(m.التخصص)}</span>` : ""}
+        </span>
+        <span class="mn-slots ${avail ? "" : "none"}">
+          ${avail ? `<bdi>${avail}</bdi> موعد` : "لا مواعيد"}
+        </span>
+      </span>`;
+
+    if(!hasDetail) return `<div class="mn-item">${head}</div>`;
+
+    return `
+      <details class="mn-item">
+        <summary>${head}</summary>
+        <div class="mn-body">
+          ${m.المنصب ? `<div class="mn-line"><span>المنصب</span>${esc(m.المنصب)}</div>` : ""}
+          ${m.الجهة  ? `<div class="mn-line"><span>الجهة</span>${esc(m.الجهة)}</div>` : ""}
+          ${m.نبذة   ? `<p class="mn-bio">${esc(m.نبذة)}</p>` : ""}
+          ${m.فرق_أرشدها ? `<div class="mn-line"><span>الخبرة</span>أرشد <bdi>${m.فرق_أرشدها}</bdi> فريقًا</div>` : ""}
+        </div>
+      </details>`;
+  };
+
+  return `
+  <div class="card" style="margin-top:14px">
+    <h2 style="margin:0 0 4px">المرشدون</h2>
+    <p class="sub" style="margin:0 0 14px">
+      <bdi>${mentors.length}</bdi> مرشدًا — اضغطوا على الاسم للتفاصيل
+    </p>
+    <div class="mn-list">${mentors.map(row).join("")}</div>
+  </div>`;
+}
+
+function setMentorView(k){
+  window._mentorView = k;
+  renderMentorshipTab(cachedMembership);
+}
+
+async function markSessionNotHeld(bookingId, mentorId, teamId){
+  const alertBox = document.getElementById(`rating-alert-${bookingId}`);
+  if(!confirm("تأكيد أن الجلسة لم تُعقد؟\n\nسيُسجَّل ذلك ولن يُطلب منكم تقييمها.")) return;
+
+  // نسجّلها في mentor_ratings بعلامة session_held=false — فتُحتسب
+  // ضمن "مقيَّمة" ولا يعود النموذج، ولا تُحسب في متوسط المرشد.
+  const { error } = await sb.from("mentor_ratings").insert({
+    booking_id: bookingId, mentor_user_id: mentorId, team_id: teamId,
+    rating: null, specialty_fit_rating: null,
+    session_held: false,
+    comment: (document.getElementById(`comment-${bookingId}`)?.value || "").trim() || null
+  });
+
+  if(error){
+    alertBox.textContent = "تعذّر التسجيل: " + error.message;
+    alertBox.style.display = "block";
+    return;
+  }
+  renderMentorshipTab(cachedMembership);
+}
+
+let currentMembership = null;
+
+async function renderDeliverablesTab(membership){
+  currentMembership = membership;
+  const body = document.getElementById("dash-tab-body");
+  const teamId = membership?.team_id;
+
+  if(!teamId){
+    body.innerHTML = `<div class="card">
+      <h2>التسليمات المطلوبة</h2>
+      <p class="sub">كوِّن فريقك أو انضم لفريق أولًا لتتمكن من التسليم.</p></div>`;
+    return;
+  }
+
+  body.innerHTML = `<div class="card"><h2>التسليمات المطلوبة</h2>
+    <p class="sub">جارٍ التحميل...</p></div>`;
+
+  const { data, error } = await sb.from("deliverables_status")
+    .select("*").eq("team_id", teamId).order("due_at", {nullsFirst:false});
+
+  if(error){
+    body.innerHTML = `<div class="card"><h2>التسليمات المطلوبة</h2>
+      <div class="hint">خطأ: ${esc(error.message)}</div></div>`;
+    return;
+  }
+
+  const rows = data || [];
+  if(!rows.length){
+    body.innerHTML = `<div class="card"><h2>التسليمات المطلوبة</h2>
+      <p class="sub">لا توجد تسليمات مطلوبة حاليًا.</p></div>`;
+    return;
+  }
+
+  const done = rows.filter(r => r.submission_id).length;
+  body.innerHTML = `
+    <div class="card">
+      <h2>التسليمات المطلوبة</h2>
+      <p class="sub">أنجزتم ${done} من ${rows.length}</p>
+      <div style="margin:14px 0">
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(done/rows.length*100)}%"></div></div>
+      </div>
+    </div>
+    ${rows.map(r => delivCardHtml(r)).join("")}`;
+  if(window.lucide) lucide.createIcons();
+}
+
+function delivCardHtml(r){
+  const overdue = !r.submission_id && r.due_at && new Date(r.due_at) < new Date();
+  const closed  = !r.is_open;
+  const tone = {
+    "مقبول":"#0D9488", "مرفوض":"#C0392B", "متأخر":"#C0392B",
+    "لم يُسلَّم":"#8FA6BC", "بانتظار المراجعة":"#D9A400"
+  }[r.الحالة] || "#8FA6BC";
+
+  const due = r.due_at
+    ? new Date(r.due_at).toLocaleDateString("ar-SA-u-nu-latn",{day:"2-digit",month:"long"})
+      + " · " + new Date(r.due_at).toLocaleTimeString("ar-SA-u-nu-latn",{hour:"2-digit",minute:"2-digit"})
+    : "بلا موعد محدد";
+
+  return `
+  <div class="card" style="margin-top:12px;border-right:3px solid ${tone}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <strong>${esc(r.deliverable_title)}</strong>
+          ${r.is_required ? '<span class="pill" style="background:#FDF0D5;color:#8A6A1E">إلزامي</span>' : ''}
+        </div>
+        <p class="hint" style="margin:6px 0 0">الموعد: ${esc(due)}</p>
+        <p style="margin:8px 0 0;font-size:13px;color:${tone};font-weight:600">${esc(r.الحالة)}</p>
+        ${r.review_note ? `<p class="hint" style="margin:6px 0 0">ملاحظة الإدارة: ${esc(r.review_note)}</p>` : ""}
+        ${r.file_url ? `<p style="margin:8px 0 0;font-size:13px">
+           <a href="${esc(r.file_url)}" target="_blank" rel="noopener">${esc(r.file_name || "الملف المرفوع")}</a></p>` : ""}
+      </div>
+      <div>
+        ${closed
+          ? '<span class="hint">الرفع مغلق</span>'
+          : `<button class="btn btn-primary btn-sm" style="width:auto"
+               onclick="openDelivUpload('${r.deliverable_id}','${r.team_id}', this)">
+               ${r.submission_id ? "استبدال الملف" : "رفع الملف"}</button>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function openDelivUpload(deliverableId, teamId, btnEl){
+  // لا نظام نوافذ في هذه الصفحة — نفتح النموذج داخل البطاقة نفسها
+  const card = btnEl.closest(".card");
+  if(card.querySelector(".dv-form")) return;   // مفتوح أصلًا
+  const form = document.createElement("div");
+  form.className = "dv-form";
+  form.style.cssText = "margin-top:14px;padding-top:14px;border-top:1px solid var(--border)";
+  form.innerHTML = `
+    <div class="field"><label>اختر الملف</label>
+      <input type="file" class="dv-file"></div>
+    <div class="field"><label>ملاحظة (اختياري)</label>
+      <textarea class="dv-note" rows="2" placeholder="أي توضيح تودّون إضافته"></textarea></div>
+    <div class="dv-alert alert" style="display:none"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary dv-send" style="width:auto">رفع</button>
+      <button class="btn btn-outline dv-cancel" style="width:auto">إلغاء</button>
+    </div>`;
+  card.appendChild(form);
+  form.querySelector(".dv-cancel").onclick = () => form.remove();
+  form.querySelector(".dv-send").onclick = () => submitDeliverable(deliverableId, teamId, form);
+  form.querySelector(".dv-file").focus();
+}
+
+async function submitDeliverable(deliverableId, teamId, form){
+  const fileInput = form.querySelector(".dv-file");
+  const alertBox  = form.querySelector(".dv-alert");
+  const btn       = form.querySelector(".dv-send");
+  const file      = fileInput.files[0];
+
+  const fail = (msg) => {
+    alertBox.style.display = "block";
+    alertBox.className = "dv-alert alert error";
+    alertBox.textContent = msg;
+    btn.disabled = false; btn.textContent = "رفع";
+  };
+
+  if(!file){ fail("اختر ملفًا أولًا"); return; }
+
+  const { data: d } = await sb.from("deliverables")
+    .select("allowed_types,max_size_mb,is_open").eq("id", deliverableId).maybeSingle();
+  if(!d?.is_open){ fail("الرفع مغلق لهذا المطلوب"); return; }
+
+  const maxMb = d?.max_size_mb || 25;
+  if(file.size > maxMb * 1024 * 1024){
+    fail(`الملف أكبر من الحد المسموح (${maxMb} ميجابايت)`); return;
+  }
+  if(d?.allowed_types){
+    const allowed = d.allowed_types.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if(allowed.length && !allowed.includes(ext)){
+      fail(`الصيغة غير مسموحة. المسموح: ${allowed.join("، ")}`); return;
+    }
+  }
+
+  btn.disabled = true; btn.textContent = "جارٍ الرفع...";
+  alertBox.style.display = "none";
+
+  try{
+    // Supabase Storage يرفض المسارات غير اللاتينية؛ والاسم العربي
+    // يُمحى بالتنقية. نستخدم الامتداد فقط، والاسم الأصلي يُحفظ في
+    // عمود file_name فيراه المستخدم صحيحًا.
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+    const path = `${teamId}/${deliverableId}/${Date.now()}.${ext}`;
+    const { error: upErr } = await sb.storage.from("deliverables").upload(path, file, { upsert:true });
+    if(upErr) throw upErr;
+
+    const { data: urlData } = sb.storage.from("deliverables").getPublicUrl(path);
+    const uid = (await sb.auth.getUser()).data.user?.id;
+
+    // تسليم واحد لكل فريق لكل مطلوب — الرفع مجددًا يستبدل السابق
+    const { error: dbErr } = await sb.from("deliverable_submissions").upsert({
+      deliverable_id: deliverableId,
+      team_id: teamId,
+      file_url: urlData.publicUrl,
+      file_name: file.name,
+      file_size_kb: Math.round(file.size / 1024),
+      note: form.querySelector(".dv-note").value.trim() || null,
+      submitted_by: uid,
+      submitted_at: new Date().toISOString(),
+      review_status: "pending",
+      review_note: null, reviewed_by: null, reviewed_at: null
+    }, { onConflict: "deliverable_id,team_id" });
+    if(dbErr) throw dbErr;
+
+    renderDeliverablesTab(currentMembership);
+  }catch(e){
+    fail("تعذّر الرفع: " + (e.message || e));
+  }
+}
+
 let cachedMentorSlots = [];
 let cachedTeamBookings = [];
 function filterMentorSlots(teamId){
@@ -1918,7 +2368,12 @@ function renderRatingPrompt(bookingId, mentorId, teamId){
       </div>
 
       <div id="rating-alert-${bookingId}" style="font-size:12px;color:var(--danger);margin-bottom:8px;display:none"></div>
-      <button type="button" class="btn btn-primary" style="width:auto;padding:10px 22px" onclick="submitMentorRating('${bookingId}','${mentorId}','${teamId}')">إرسال التقييم</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-primary" style="width:auto;padding:10px 22px" onclick="submitMentorRating('${bookingId}','${mentorId}','${teamId}')">إرسال التقييم</button>
+        <button type="button" class="btn-link" style="font-size:12.5px;color:var(--muted)"
+          onclick="markSessionNotHeld('${bookingId}','${mentorId}','${teamId}')">لم تُعقد الجلسة</button>
+      </div>
+      <p class="hint" style="margin:8px 0 0;font-size:11.5px">التقييم اختياري. اختاروا «لم تُعقد» إن تعذّر انعقاد الجلسة.</p>
     </div>
   `;
 }
@@ -1943,7 +2398,8 @@ async function submitMentorRating(bookingId, mentorId, teamId){
 
   const { error } = await sb.from("mentor_ratings").insert({
     booking_id: bookingId, mentor_user_id: mentorId, team_id: teamId,
-    rating: sel.benefit, specialty_fit_rating: sel.fit, comment: comment || null
+    rating: sel.benefit, specialty_fit_rating: sel.fit,
+    session_held: true, comment: comment || null
   });
   if(error){ alertBox.textContent = "تعذّر إرسال التقييم: " + error.message; alertBox.style.display = "block"; return; }
   delete ratingSelections[bookingId];

@@ -363,3 +363,12 @@ left join public.profiles p on p.id = s.mentor_user_id;
 revoke select on public.available_mentor_slots, public.mentor_rating_summary, public.mentorship_admin_detail,
   public.mentorship_health, public.mentorship_timeline, public.mentorship_upcoming, public.mentorship_coverage,
   public.teams_without_mentorship, public.unconfirmed_sessions, public.team_bookings_view from anon;
+
+-- (80) الجلسة التي لم تُعقد تُسجَّل بلا تقييم؛ التقييم إلزامي فقط للجلسة المنعقدة
+alter table public.mentor_ratings alter column rating drop not null;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'mentor_ratings_rating_required_if_held') then
+    alter table public.mentor_ratings add constraint mentor_ratings_rating_required_if_held
+      check (session_held = false or rating is not null);
+  end if;
+end $$;

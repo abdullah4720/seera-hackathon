@@ -124,6 +124,9 @@
   .topbar{display:flex; justify-content:space-between; align-items:center; max-width:800px; margin:0 auto 20px; padding:20px 20px 0;}
   .topbar .who{font-size:13px; color:var(--muted);}
   .topbar .who strong{color:var(--ink);}
+  .topbar .who{display:flex; align-items:center; gap:10px;}
+  .who-badge{width:34px; height:34px; border-radius:10px; background:#28323C; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(40,50,60,.18);}
+  .who-badge svg{width:18px; height:18px; color:#F7C30D; stroke-width:2.2;}
   .dash-wrap{max-width:800px; margin:0 auto; padding:0 20px 60px;}
 
   .status-badge{display:inline-block; padding:4px 13px; border-radius:20px; font-size:12px; font-weight:600;}
@@ -438,7 +441,7 @@
 <!-- ============== لوحة المشارك ============== -->
 <div id="dash-screen">
   <div class="topbar">
-    <div class="who">مرحبًا، <strong id="dash-name"></strong></div>
+    <div class="who"><span class="who-badge" aria-hidden="true"><i data-lucide="book-open-text"></i></span><span>مرحبًا، <strong id="dash-name"></strong></span></div>
     <div style="display:flex; align-items:center; gap:14px">
       <div style="position:relative">
         <button class="btn-link" onclick="toggleNotifPanel()" style="font-size:16px; position:relative">

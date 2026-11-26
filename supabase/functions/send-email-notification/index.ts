@@ -167,6 +167,27 @@ serve(async (req) => {
          <span style="color:#6B7480; font-size:11px;">${footerOrgText}</span>`
       : `<span style="color:#28323C; font-size:16px; font-weight:bold;">${footerOrgText}</span>`;
 
+    // توقيع الإيميل الرسمي — جداول فقط ليتوافق مع Outlook
+    const siteHost = SITE_BASE_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const signatureHtml = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:26px; border-top:1px solid #E4E6EF;">
+        <tr><td dir="rtl" style="padding-top:18px; text-align:right; font-family:'IBM Plex Sans Arabic', Tahoma, Arial, sans-serif;">
+          <p style="margin:0 0 12px; font-size:13px; color:#3A4450;">مع خالص التحية والتقدير،</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl">
+            <tr>
+              <td style="width:4px; background:#F7C30D; border-radius:2px;"></td>
+              <td dir="rtl" style="padding:2px 14px 2px 0; text-align:right; font-family:'IBM Plex Sans Arabic', Tahoma, Arial, sans-serif;">
+                <div style="font-size:11.5px; color:#6B7480; margin-bottom:2px;">اللجنة المنظمة</div>
+                <div style="font-size:16px; font-weight:bold; color:#28323C; margin-bottom:6px;">هاكثون السيرة النبوية</div>
+                <div style="font-size:12px; color:#3A4450; line-height:1.7;">كرسي الشيخ عبدالله بن صالح الراشد الحميد لخدمة السيرة النبوية</div>
+                <div style="font-size:12px; color:#3A4450; line-height:1.7;">جامعة القصيم</div>
+                <div style="font-size:11.5px; margin-top:6px;"><a href="${SITE_BASE_URL}" style="color:#B58900; text-decoration:none;" dir="ltr">${siteHost}</a></div>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>`;
+
     // إرسال الإيميل عبر Resend
     const emailRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -202,6 +223,7 @@ serve(async (req) => {
                     ${buttonText}
                   </a>
                 </div>
+                ${signatureHtml}
               </div>
               <div style="background:#FEF6DC; padding:14px 24px; text-align:center; font-family:'IBM Plex Sans Arabic', Tahoma, Arial, sans-serif;">
                 <span style="font-size:10.5px; color:#6B7480;">© 2026 ${footerOrgText} — جميع الحقوق محفوظة</span>

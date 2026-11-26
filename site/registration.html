@@ -1742,7 +1742,7 @@ async function renderMentorshipTab(membership){
   }
 
   const { data: slots, error } = await sb.from("mentor_slots")
-    .select("id, start_time, end_time, is_online, location, is_booked, track_id, mentor_user_id, profiles(full_name, specialization, current_position, bio)")
+    .select("id, start_time, end_time, is_online, location, is_booked, track_id, mentor_user_id, profiles(full_name, specialization, current_position, bio, mentor_present, mentor_present_at)")
     .eq("is_booked", false)
     .or(`track_id.is.null,track_id.eq.${team.track_id}`)
     .gte("start_time", new Date().toISOString())
@@ -1762,7 +1762,14 @@ async function renderMentorshipTab(membership){
   const relevantKeywords = trackKeywordMap[team.tracks?.name_ar] || [];
   const isRecommended = (spec) => relevantKeywords.some(k => (spec||"").includes(k));
 
-  cachedMentorSlots = (slots || []).sort((a,b) => (isRecommended(b.profiles?.specialization)?1:0) - (isRecommended(a.profiles?.specialization)?1:0));
+  // تحضير المرشدين: لا تظهر إلا مواعيد المرشدين المسجَّل حضورهم اليوم (بتوقيت الرياض)
+  // — والخادم يرفض الحجز على غيرها أيضًا (sql/74)
+  const { data: presenceRequired } = await sb.rpc("mentor_presence_required");
+  const riyadhDay = (d) => new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"});
+  const presentToday = (p) => !!(p && p.mentor_present && p.mentor_present_at && riyadhDay(p.mentor_present_at) === riyadhDay(Date.now()));
+  const visibleSlots = presenceRequired === false ? (slots || []) : (slots || []).filter(s => presentToday(s.profiles));
+
+  cachedMentorSlots = visibleSlots.sort((a,b) => (isRecommended(b.profiles?.specialization)?1:0) - (isRecommended(a.profiles?.specialization)?1:0));
   const specializations = [...new Set(cachedMentorSlots.map(s => s.profiles?.specialization).filter(Boolean))];
   const mentorNames = [...new Map(cachedMentorSlots.filter(s=>s.mentor_user_id).map(s => [s.mentor_user_id, s.profiles?.full_name])).entries()];
 
@@ -1777,7 +1784,7 @@ async function renderMentorshipTab(membership){
   }
 
   const slotsHtml = !displaySlots.length
-    ? `<div class="card"><h2>المواعيد المتاحة</h2><p class="sub">${followUpMentorFilter ? "لا توجد مواعيد متاحة حاليًا لهذا المرشد" : "لا توجد مواعيد إرشاد متاحة حاليًا، تابع لاحقًا"}</p></div>`
+    ? `<div class="card"><h2>المواعيد المتاحة</h2><p class="sub">${followUpMentorFilter ? "لا توجد مواعيد متاحة حاليًا لهذا المرشد" : (presenceRequired === false ? "لا توجد مواعيد إرشاد متاحة حاليًا، تابع لاحقًا" : "لا توجد مواعيد إرشاد متاحة الآن — تظهر المواعيد فور تسجيل حضور المرشدين، تابعوا الصفحة لاحقًا")}</p></div>`
     : `<div class="card">
         <h2>المواعيد المتاحة</h2>
         <p class="sub">مرتّبة حسب الأنسب لمسار فريقكم — يمكنكم حجز أكثر من مرشد بشرط عدم تعارض الأوقات</p>
@@ -1871,7 +1878,7 @@ async function bookMentorSlot(slotId, teamId){
   }
   const topic = prompt("ما موضوع الجلسة الذي ترغب مناقشته؟ (اختياري)") || null;
   const { error } = await sb.from("mentor_bookings").insert({ slot_id: slotId, team_id: teamId, requested_topic: topic });
-  if(error){ alert("تعذّر الحجز: " + error.message); return; }
+  if(error){ alert("تعذّر الحجز: " + error.message); renderMentorshipTab(cachedMembership); return; }
   renderMentorshipTab(cachedMembership);
 }
 async function cancelMyMentorBooking(bookingId){

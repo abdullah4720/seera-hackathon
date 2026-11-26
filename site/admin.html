@@ -1395,6 +1395,8 @@ async function renderGsMentorshipMode(){
   const box = document.getElementById("gs-mentorship-mode-box");
   const { data } = await sb.from("platform_settings").select("value").eq("key","mentorship_mode").maybeSingle();
   const currentMode = data?.value || "self";
+  const { data: presData } = await sb.from("platform_settings").select("value").eq("key","mentor_presence_required").maybeSingle();
+  const presenceOn = (presData?.value || "true").trim().toLowerCase() !== "false";
   box.innerHTML = `
     <div class="track-option ${currentMode==='self'?'selected':''}" style="cursor:pointer" onclick="selectGsMentorshipMode('self')">
       <h4><i data-lucide="hand" style="width:14px;height:14px;vertical-align:-2px;display:inline-block"></i> حجز ذاتي من الفريق</h4>
@@ -1404,8 +1406,20 @@ async function renderGsMentorshipMode(){
       <h4><i data-lucide="user-cog" style="width:14px;height:14px;vertical-align:-2px;display:inline-block"></i> توجيه من الإدارة فقط</h4>
       <p>الإدارة تحدد يدويًا أي مرشد يناسب كل فريق — تحكم دقيق بالمطابقة</p>
     </div>
+    <label style="display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;cursor:pointer">
+      <input type="checkbox" id="gs-presence-required" ${presenceOn ? "checked" : ""} onchange="saveGsPresenceRequired(this.checked)" style="margin-top:3px">
+      <span><strong style="font-size:13.5px">ربط المواعيد بتحضير المرشدين</strong><br>
+      <span class="hint">عند التفعيل: لا تظهر للفرق ولا تُحجز إلا مواعيد المرشدين الذين سُجّل حضورهم اليوم من «إدارة الإرشاد ← المرشدون»</span></span>
+    </label>
     <div id="gs-mentorship-mode-alert" class="alert" style="margin-top:12px"></div>`;
   if(window.lucide) lucide.createIcons();
+}
+async function saveGsPresenceRequired(on){
+  const { error } = await sb.from("platform_settings").upsert({ key: "mentor_presence_required", value: on ? "true" : "false" });
+  const alertBox = document.getElementById("gs-mentorship-mode-alert");
+  if(error){ alertBox.textContent = "خطأ: " + error.message; alertBox.className = "alert error"; return; }
+  logActivity("تغيير ربط المواعيد بتحضير المرشدين", "platform_settings", null, {on});
+  alertBox.textContent = on ? "تم التفعيل — تظهر مواعيد المرشدين الحاضرين اليوم فقط" : "تم الإيقاف — تظهر كل المواعيد المتاحة للفرق"; alertBox.className = "alert success";
 }
 async function selectGsMentorshipMode(mode){
   const { error } = await sb.from("platform_settings").upsert({ key: "mentorship_mode", value: mode });
@@ -2276,29 +2290,53 @@ async function renderMentorshipOverview(){
   `;
 }
 
+/* ---------------- تحضير المرشدين ---------------- */
+// الحضور صالح لليوم نفسه بتوقيت الرياض فقط (مطابق لدالة is_mentor_present_today)
+function riyadhDay(d){ return new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"}); }
+function isPresentToday(p){ return !!(p && p.mentor_present && p.mentor_present_at && riyadhDay(p.mentor_present_at) === riyadhDay(Date.now())); }
+function mentorPresenceCell(userId, p){
+  const present = isPresentToday(p);
+  const time = present ? new Date(p.mentor_present_at).toLocaleTimeString("ar-SA", {timeZone:"Asia/Riyadh", hour:"numeric", minute:"2-digit"}) : "";
+  return present
+    ? `<span class="badge badge-green">حاضر · ${esc(time)}</span><br><button class="btn-link" style="font-size:12px;color:var(--danger);margin-top:4px" onclick='toggleMentorPresence(${jsArg(userId)}, false)'>إلغاء الحضور</button>`
+    : `<span class="badge" style="background:var(--border-light);color:var(--muted)">غير مسجَّل</span><br><button class="btn btn-outline btn-sm" style="margin-top:6px" onclick='toggleMentorPresence(${jsArg(userId)}, true)'>تسجيل الحضور</button>`;
+}
+async function toggleMentorPresence(userId, present){
+  const { data, error } = await sb.rpc("set_mentor_presence", { p_user_id: userId, p_present: present });
+  if(error || !data?.success){ showToast((data && data.error) || error?.message || "تعذّر تحديث الحضور", true); return; }
+  showToast(present ? "تم تسجيل حضور المرشد — مواعيده ظاهرة الآن للفرق" : "تم إلغاء حضور المرشد — أُخفيت مواعيده عن الفرق");
+  renderMentorshipMentorsList();
+}
+
 /* ---------------- المرشدون ---------------- */
 async function renderMentorshipMentorsList(){
   const body = document.getElementById("mentorship-body");
   body.innerHTML = `<div class="card">
       <div class="toolbar" style="margin-bottom:14px">
-        <div></div>
+        <div id="mentor-presence-summary" class="hint" style="margin:0"></div>
         <button class="btn btn-primary btn-sm" onclick="openAddMentorModal()">+ إضافة مرشد</button>
       </div>
       <div id="mentors-mgmt-table">${skeletonRows(4)}</div>
     </div>`;
 
   const { data: mentorRoles } = await sb.from("user_roles")
-    .select("id, user_id, profiles!user_roles_user_id_fkey(full_name, email, specialization, current_position, bio), roles!inner(key)")
+    .select("id, user_id, profiles!user_roles_user_id_fkey(full_name, email, specialization, current_position, bio, mentor_present, mentor_present_at), roles!inner(key)")
     .eq("roles.key", "mentor");
 
   const { data: slots } = await sb.from("mentor_slots").select("id, mentor_user_id, is_booked, start_time");
   const { data: bookings } = await sb.from("mentor_bookings").select("id, status, slot_id, mentor_slots(mentor_user_id)");
 
   const box = document.getElementById("mentors-mgmt-table");
+  const { data: presenceReq } = await sb.rpc("mentor_presence_required");
+  const presentCount = (mentorRoles||[]).filter(m => isPresentToday(m.profiles)).length;
+  const sumBox = document.getElementById("mentor-presence-summary");
+  if(sumBox) sumBox.innerHTML = presenceReq === false
+    ? `ربط المواعيد بالحضور: <strong style="color:var(--danger)">موقوف</strong> — كل المواعيد ظاهرة للفرق`
+    : `الحاضرون اليوم: <strong style="color:var(--ink)">${presentCount} / ${(mentorRoles||[]).length}</strong> — لا تظهر للفرق إلا مواعيد المرشدين الحاضرين`;
   if(!mentorRoles || !mentorRoles.length){ box.innerHTML = emptyIllustration("graduation-cap", "لا يوجد مرشدون بعد", "أضف أول مرشد بالزر أعلاه ليبدأ بدعم الفرق"); return; }
 
   box.innerHTML = `<table><thead><tr>
-    <th>المرشد</th><th>التخصص / المسمى الوظيفي</th><th>إجمالي المواعيد</th><th>المحجوزة</th><th>الجلسات المغلقة</th><th></th>
+    <th>المرشد</th><th>حضور اليوم</th><th>التخصص / المسمى الوظيفي</th><th>إجمالي المواعيد</th><th>المحجوزة</th><th>الجلسات المغلقة</th><th></th>
     </tr></thead><tbody>
     ${mentorRoles.map(m => {
       const mySlots = (slots||[]).filter(s => s.mentor_user_id === m.user_id);
@@ -2307,6 +2345,7 @@ async function renderMentorshipMentorsList(){
       const hasFutureSlots = mySlots.some(s => new Date(s.start_time) > new Date() && s.is_booked);
       return `<tr>
         <td><strong>${esc(m.profiles?.full_name||"—")}</strong><br><span style="color:var(--muted);font-size:12px">${esc(m.profiles?.email||"")}</span></td>
+        <td>${mentorPresenceCell(m.user_id, m.profiles)}</td>
         <td>${esc(m.profiles?.specialization||"—")}<br><span style="color:var(--muted);font-size:12px">${esc(m.profiles?.current_position||"")}</span></td>
         <td>${mySlots.length}</td>
         <td>${myBooked}</td>

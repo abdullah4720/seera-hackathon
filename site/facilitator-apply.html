@@ -33,7 +33,6 @@
   .days{display:flex; flex-wrap:wrap; gap:8px;}
   .days label{display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px; font-weight:500; cursor:pointer; margin:0;}
   .days input{width:auto;}
-  .perks{background:#FFFAE7; border:1px solid #F3E2A0; border-radius:11px; padding:12px 14px; font-size:12.5px; line-height:1.8; margin-bottom:18px;}
   @media (max-width:600px){ img.hdr-logo{height:34px !important;} }
 </style>
 <script src="config.js"></script>
@@ -53,12 +52,6 @@
 
 <div class="wrap">
   <div class="panel">
-    <div class="perks">
-      <strong>بعد اعتماد طلبك ستتمكّن من:</strong><br>
-      • تسجيل حضور المشاركين يدويًا أو بمسح رمز QR<br>
-      • تسجيل حضور المرشدين لتظهر مواعيدهم للفرق<br>
-      • متابعة الفرق المشاركة بالاسم والفريق والمسار
-    </div>
     <div class="switcher">
       <button id="tab-new" onclick="switchTab('new')">حساب جديد</button>
       <button id="tab-existing" class="active" onclick="switchTab('existing')">لدي حساب مسبقًا</button>

@@ -52,13 +52,13 @@
     return shared;
   }
 
-  function markup({ name, typeName, text, roleKey, code, date }){
+  function markup({ name, typeName, text, roleKey, code, date, introText, signatureLabel, signatureName }){
     const S = shared || {};
     const brandAr  = S.cert_brand_ar  || "هاكثون السيرة النبوية";
     const brandEn  = S.cert_brand_en  || "Prophetic Seerah Hackathon";
-    const intro    = S.cert_intro     || "يشهد كرسي الشيخ عبدالله بن صالح الراشد الحميد لخدمة السيرة النبوية بجامعة القصيم بأنّ";
-    const sigLabel = S.cert_signature_label || "مع خالص الشكر والتقدير،";
-    const sigName  = S.cert_signature_name  || "اللجنة المنظمة لهاكثون السيرة النبوية";
+    const intro    = introText || S.cert_intro || "يشهد كرسي الشيخ عبدالله بن صالح الراشد الحميد لخدمة السيرة النبوية بجامعة القصيم بأنّ";
+    const sigLabel = signatureLabel || S.cert_signature_label || "مع خالص الشكر والتقدير،";
+    const sigName  = signatureName || S.cert_signature_name || "اللجنة المنظمة لهاكثون السيرة النبوية";
     const scale    = parseFloat(S.cert_body_scale) || 1;
     const fill = (t) => String(t || "")
       .replace(/\{\{name\}\}/g, name).replace(/\{\{type\}\}/g, typeName)

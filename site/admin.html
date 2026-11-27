@@ -3646,12 +3646,395 @@ async function saveBookingRules(){
 }
 
 let cachedPrepData = [];
+let prepTab = "grid";   // grid = شبكة التحضير | sessions = إدارة الجلسات
+
 async function renderPrep(){
   const main = document.getElementById("main-content");
   main.innerHTML = `<div class="page-header">
-      <div><h1>جلسات التحضير</h1><p>الورش والتدريبات قبل الهاكثون — سجّل الحضور يدويًا أو فعّل الجلسة النشطة لمسح QR</p></div>
-      <button class="btn btn-primary" onclick="openPrepModal()">+ إضافة جلسة</button>
+      <div><h1>الحضور والتحضير</h1><p>شبكة تحضير موحّدة لكل المشاركين — أيام الهاكثون والجلسات التحضيرية والفعاليات</p></div>
+      ${prepTab === "sessions" ? `<button class="btn btn-primary" onclick="openPrepModal()">+ إضافة جلسة</button>` : ""}
     </div>
+    <div class="tabs" style="margin-bottom:16px">
+      <div class="tab ${prepTab==='grid'?'active':''}" onclick="switchPrepTab('grid')">شبكة التحضير</div>
+      <div class="tab ${prepTab==='sessions'?'active':''}" onclick="switchPrepTab('sessions')">إدارة الجلسات</div>
+    </div>
+    <div id="prep-root"></div>`;
+
+  if(prepTab === "grid") return renderAttendanceGrid();
+  renderPrepSessions();
+}
+
+function switchPrepTab(t){ prepTab = t; renderPrep(); }
+
+/* ============================================================
+   شبكة التحضير — صف لكل مشارك، عمود لكل جلسة
+   ============================================================ */
+let gridSessions = [];
+let gridRows     = [];      // { user_id, name, team, track, attended:Set }
+let gridSearch   = "";
+let gridTrack    = "";
+let gridSession  = "";   // جلسة مختارة لفلترة حاضر/غائب
+let gridStatus   = "";   // present | absent | none | full | at_risk
+let gridPage     = 1;
+const GRID_PAGE_SIZE = 50;
+
+async function renderAttendanceGrid(){
+  const root = document.getElementById("prep-root");
+  root.innerHTML = `<div class="card">${skeletonRows(6)}</div>`;
+
+  // ثلاثة استعلامات مجمّعة فقط — لا استعلام لكل مشارك
+  const [sesRes, memRes, attRes, certRes] = await Promise.all([
+    sb.from("prep_sessions")
+      .select("id, title, session_type, session_date, attendance_open, counts_for_certificate")
+      .order("display_order").order("session_date"),
+    sb.from("team_members")
+      .select("user_id, is_leader, profiles!team_members_user_id_fkey(full_name, phone), teams(team_name, tracks(name_ar))"),
+    sb.from("prep_attendance").select("session_id, user_id"),
+    sb.from("certificate_types").select("min_attendance_pct").eq("key","participation").maybeSingle()
+  ]);
+  certThreshold = certRes?.data?.min_attendance_pct ?? 50;
+
+  if(sesRes.error || memRes.error || attRes.error){
+    root.innerHTML = `<div class="card"><div class="empty-state">تعذّر التحميل — تأكد من تطبيق ملف sql/82</div></div>`;
+    return;
+  }
+
+  gridSessions = sesRes.data || [];
+
+  const attByUser = {};
+  (attRes.data||[]).forEach(a => {
+    (attByUser[a.user_id] = attByUser[a.user_id] || new Set()).add(a.session_id);
+  });
+
+  // مشارك واحد قد يظهر بعدة فرق نظريًا — نأخذ أول انتماء
+  const seen = new Set();
+  gridRows = [];
+  (memRes.data||[]).forEach(m => {
+    if(seen.has(m.user_id)) return;
+    seen.add(m.user_id);
+    gridRows.push({
+      user_id: m.user_id,
+      name:  m.profiles?.full_name || "—",
+      phone: m.profiles?.phone || "—",
+      leader: !!m.is_leader,
+      team:  m.teams?.team_name || "—",
+      track: m.teams?.tracks?.name_ar || "—",
+      attended: attByUser[m.user_id] || new Set()
+    });
+  });
+  // الترتيب بالمشروع لا بالاسم: أعضاء الفريق يجلسون معًا،
+  // فتجاورهم بالشبكة يختصر تنقّل المحضِّر
+  gridRows.sort((a,b) =>
+    a.team.localeCompare(b.team,"ar") ||
+    (b.leader?1:0) - (a.leader?1:0) ||
+    a.name.localeCompare(b.name,"ar"));
+
+  drawGridShell();
+}
+
+function drawGridShell(){
+  const root = document.getElementById("prep-root");
+  const tracks = [...new Set(gridRows.map(r => r.track))].filter(t => t !== "—").sort();
+
+  root.innerHTML = `
+    <div id="grid-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px"></div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="form-row-2" style="grid-template-columns:2fr 1fr 1fr 1fr">
+        <div class="field" style="margin:0"><label>بحث بالاسم أو المشروع أو الجوال</label>
+          <input id="grid-search" value="${esc(gridSearch)}" placeholder="اكتب للبحث..." oninput="onGridSearch(this.value)">
+        </div>
+        <div class="field" style="margin:0"><label>المسار</label>
+          <select id="grid-track" onchange="onGridTrack(this.value)">
+            <option value="">كل المسارات</option>
+            ${tracks.map(t => `<option value="${esc(t)}" ${gridTrack===t?"selected":""}>${esc(t)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" style="margin:0"><label>الجلسة</label>
+          <select id="grid-session" onchange="onGridSession(this.value)">
+            <option value="">— اختر جلسة —</option>
+            ${gridSessions.map(s => `<option value="${s.id}" ${gridSession===s.id?"selected":""}>${esc(s.title)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" style="margin:0"><label>الحالة</label>
+          <select id="grid-status" onchange="onGridStatus(this.value)">
+            <option value="">الكل</option>
+            <option value="present"  ${gridStatus==='present'?'selected':''}>حاضر</option>
+            <option value="absent"   ${gridStatus==='absent'?'selected':''}>غائب</option>
+            <option value="none"     ${gridStatus==='none'?'selected':''}>لم يحضر أي جلسة</option>
+            <option value="full"     ${gridStatus==='full'?'selected':''}>حضر كل الجلسات</option>
+            <option value="at_risk"  ${gridStatus==='at_risk'?'selected':''}>دون حد الشهادة</option>
+          </select>
+          <p class="hint" style="margin-top:4px;font-size:11px">«حاضر/غائب» يحتاج اختيار جلسة</p>
+        </div>
+      </div>
+    </div>
+    <div id="grid-body"></div>`;
+  drawGridStats();
+  drawGrid();
+}
+
+function onGridSearch(v){ gridSearch = v; gridPage = 1; drawGrid(); }
+function onGridTrack(v){ gridTrack = v; gridPage = 1; drawGrid(); drawGridStats(); }
+function onGridSession(v){ gridSession = v; gridPage = 1; drawGrid(); drawGridStats(); }
+function onGridStatus(v){ gridStatus = v; gridPage = 1; drawGrid(); }
+
+// حد الشهادة الأدنى — يُقرأ من نوع شهادة المشاركة عند التحميل
+let certThreshold = 50;
+
+function rowPct(r){
+  const counted = gridSessions.filter(s => s.counts_for_certificate);
+  if(!counted.length) return 100;
+  return Math.round(counted.filter(s => r.attended.has(s.id)).length / counted.length * 100);
+}
+
+function drawGridStats(){
+  const box = document.getElementById("grid-stats");
+  if(!box) return;
+
+  // الإحصاءات تتبع فلتر المسار فقط، لا البحث ولا الحالة —
+  // وإلا صارت تصف نفسها بدل أن تصف الحضور
+  const base = gridRows.filter(r => !gridTrack || r.track === gridTrack);
+  const counted = gridSessions.filter(s => s.counts_for_certificate);
+
+  const sel = gridSession ? gridSessions.find(s => s.id === gridSession) : null;
+  const present = sel ? base.filter(r => r.attended.has(sel.id)).length : null;
+
+  const avg = base.length
+    ? Math.round(base.reduce((a,r) => a + rowPct(r), 0) / base.length)
+    : 0;
+  const atRisk = base.filter(r => rowPct(r) < certThreshold).length;
+  const zero   = base.filter(r => counted.every(s => !r.attended.has(s.id))).length;
+
+  box.innerHTML = `
+    ${statCard(base.length, "المشاركون")}
+    ${sel
+      ? statCard(`${present} <span style="font-size:13px;color:var(--muted)">/ ${base.length}</span>`,
+                 `حضور: ${esc(sel.title)}`, true)
+      : statCard(gridSessions.filter(s=>s.session_type==='day').length, "أيام الهاكثون")}
+    ${statCard(avg + "%", "متوسط الحضور")}
+    ${statCard(atRisk, `دون حد الشهادة (${certThreshold}%)`)}
+    ${statCard(zero, "لم يحضروا شيئًا")}
+  `;
+}
+
+function gridFiltered(){
+  const q = gridSearch.trim().toLowerCase();
+  const counted = gridSessions.filter(s => s.counts_for_certificate);
+
+  return gridRows.filter(r => {
+    if(gridTrack && r.track !== gridTrack) return false;
+    if(q && !(r.name.toLowerCase().includes(q) || r.team.toLowerCase().includes(q) || r.phone.includes(q))) return false;
+
+    switch(gridStatus){
+      case "present":
+        // بلا جلسة مختارة: حضر شيئًا على الأقل
+        return gridSession ? r.attended.has(gridSession)
+                           : counted.some(s => r.attended.has(s.id));
+      case "absent":
+        return gridSession ? !r.attended.has(gridSession)
+                           : counted.some(s => !r.attended.has(s.id));
+      case "none":
+        return counted.every(s => !r.attended.has(s.id));
+      case "full":
+        return counted.length > 0 && counted.every(s => r.attended.has(s.id));
+      case "at_risk":
+        return rowPct(r) < certThreshold;
+      default:
+        return true;
+    }
+  });
+}
+
+const SESSION_BADGE = {
+  day:   { label: "يوم",    color: "#B8860B" },
+  prep:  { label: "تحضيري", color: "#A67C00" },
+  event: { label: "فعالية", color: "#D9A400" },
+};
+
+function drawGrid(){
+  const box = document.getElementById("grid-body");
+  if(!box) return;
+
+  if(!gridSessions.length){
+    box.innerHTML = `<div class="card">${emptyIllustration("calendar-x","لا توجد جلسات بعد","أضف أيام الهاكثون من الجدول الزمني، أو جلسة من تبويب إدارة الجلسات")}</div>`;
+    return;
+  }
+  if(!gridRows.length){
+    box.innerHTML = `<div class="card">${emptyIllustration("users","لا يوجد مشاركون في فرق بعد","الشبكة تعرض أعضاء الفرق فقط")}</div>`;
+    return;
+  }
+
+  const rows  = gridFiltered();
+  const pages = Math.max(1, Math.ceil(rows.length / GRID_PAGE_SIZE));
+  if(gridPage > pages) gridPage = pages;
+  const slice = rows.slice((gridPage-1)*GRID_PAGE_SIZE, gridPage*GRID_PAGE_SIZE);
+
+  // إجمالي الحضور لكل جلسة (على المصفّى، لا على الصفحة)
+  const totals = {};
+  gridSessions.forEach(s => {
+    totals[s.id] = rows.filter(r => r.attended.has(s.id)).length;
+  });
+
+  box.innerHTML = `
+    <div class="card" style="padding:0;overflow:auto">
+      <table style="min-width:max-content;margin:0">
+        <thead>
+          <tr>
+            <th style="position:sticky;right:0;background:var(--card);z-index:3;min-width:180px;box-shadow:-1px 0 0 var(--border)">المشارك</th>
+            <th style="position:sticky;right:180px;background:var(--card);z-index:3;min-width:120px;box-shadow:-1px 0 0 var(--border)">الجوال</th>
+            <th style="min-width:150px">المسار</th>
+            ${gridSessions.map(s => {
+              const m = SESSION_BADGE[s.session_type] || SESSION_BADGE.prep;
+              return `<th style="text-align:center;min-width:104px">
+                <div style="font-size:12px;line-height:1.5">${esc(s.title)}</div>
+                <div style="margin-top:4px;display:flex;gap:5px;justify-content:center;align-items:center;flex-wrap:wrap">
+                  <span style="font-size:9.5px;padding:1px 7px;border-radius:20px;background:${m.color}1f;color:${m.color};font-weight:700">${m.label}</span>
+                  <span title="${s.attendance_open ? "التحضير مفتوح للميسّر" : "التحضير مغلق"}"
+                        style="cursor:pointer;font-size:11px" onclick="toggleSessionOpen('${s.id}', ${!s.attendance_open})">
+                    ${s.attendance_open ? "🔓" : "🔒"}
+                  </span>
+                </div>
+                <div style="font-size:10.5px;color:var(--muted);margin-top:3px">${totals[s.id]} / ${rows.length}</div>
+              </th>`;
+            }).join("")}
+            <th style="text-align:center;min-width:78px">النسبة</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(() => {
+            // نُدرج صف عنوان عند تغيّر المشروع (الصفوف مرتّبة به أصلًا)
+            let lastTeam = null;
+            return slice.map(r => {
+              const head = r.team !== lastTeam
+                ? (lastTeam = r.team, `<tr>
+                     <td colspan="2" style="position:sticky;right:0;z-index:2;background:#eef1f6;padding:9px 14px;font-weight:800;font-size:13px;color:var(--navy);box-shadow:-1px 0 0 var(--border)">
+                       ${esc(r.team)}
+                     </td>
+                     <td colspan="${2 + gridSessions.length}" style="background:#eef1f6;padding:9px 14px;font-size:11.5px;color:var(--muted)">
+                       ${esc(r.track)}
+                     </td></tr>`)
+                : "";
+              const pct = rowPct(r);
+              return head + `<tr data-uid="${r.user_id}">
+              <td style="position:sticky;right:0;background:var(--card);z-index:1;box-shadow:-1px 0 0 var(--border)">
+                <strong>${esc(r.name)}</strong>${r.leader ? ` <span style="font-size:9px;padding:1px 6px;border-radius:20px;background:#fbf3e2;color:var(--gold);font-weight:700">قائد</span>` : ""}
+              </td>
+              <td style="position:sticky;right:180px;background:var(--card);z-index:1;font-size:12px;color:var(--muted);box-shadow:-1px 0 0 var(--border)">${esc(r.phone)}</td>
+              <td style="font-size:12px;color:var(--muted)">${esc(r.track)}</td>
+              ${gridSessions.map(s => {
+                const on = r.attended.has(s.id);
+                return `<td style="text-align:center;padding:6px">
+                  <button type="button" onclick="toggleAttendance('${r.user_id}','${s.id}')"
+                    id="cell-${r.user_id}-${s.id}"
+                    title="${on ? "حاضر — اضغط للإلغاء" : "غائب — اضغط للتحضير"}"
+                    style="width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;transition:.12s;
+                           border:1.5px solid ${on ? "var(--teal)" : "var(--border)"};
+                           background:${on ? "var(--teal)" : "#fff"};
+                           color:${on ? "#fff" : "var(--border)"}">${on ? "✓" : ""}</button>
+                </td>`;
+              }).join("")}
+              <td style="text-align:center;font-weight:700;color:${pct >= certThreshold ? "var(--teal)" : "var(--muted)"}">${pct}%</td>
+            </tr>`;
+            }).join("");
+          })()}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:10px">
+      <span style="font-size:12.5px;color:var(--muted)">
+        ${rows.length} مشارك${gridSearch||gridTrack ? " (مصفّى)" : ""} · النسبة تحتسب الجلسات المعتمدة للشهادة فقط
+      </span>
+      ${pages > 1 ? `<div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-outline btn-sm" ${gridPage<=1?"disabled":""} onclick="gridGo(${gridPage-1})">السابق</button>
+        <span style="font-size:12.5px">${gridPage} / ${pages}</span>
+        <button class="btn btn-outline btn-sm" ${gridPage>=pages?"disabled":""} onclick="gridGo(${gridPage+1})">التالي</button>
+      </div>` : ""}
+    </div>`;
+  if(window.lucide) lucide.createIcons();
+}
+
+function gridGo(p){ gridPage = p; drawGrid(); }
+
+/* ---- تبديل الحضور فورًا ---- */
+// نحدّث الخلية بصريًا قبل انتظار الخادم، ونتراجع لو فشل الطلب
+async function toggleAttendance(userId, sessionId){
+  const row = gridRows.find(r => r.user_id === userId);
+  if(!row) return;
+  const cell = document.getElementById(`cell-${userId}-${sessionId}`);
+  const wasOn = row.attended.has(sessionId);
+
+  paintCell(cell, !wasOn);
+  cell.disabled = true;
+
+  const { error } = wasOn
+    ? await sb.from("prep_attendance").delete().eq("user_id", userId).eq("session_id", sessionId)
+    : await sb.from("prep_attendance").insert({ user_id: userId, session_id: sessionId });
+
+  cell.disabled = false;
+
+  if(error){
+    paintCell(cell, wasOn);          // تراجع
+    showToast("تعذّر الحفظ: " + error.message, true);
+    return;
+  }
+
+  wasOn ? row.attended.delete(sessionId) : row.attended.add(sessionId);
+  updateGridTotals();
+  drawGridStats();
+}
+
+function paintCell(cell, on){
+  if(!cell) return;
+  cell.textContent      = on ? "✓" : "";
+  cell.style.background = on ? "var(--teal)" : "#fff";
+  cell.style.borderColor= on ? "var(--teal)" : "var(--border)";
+  cell.style.color      = on ? "#fff" : "var(--border)";
+  cell.title            = on ? "حاضر — اضغط للإلغاء" : "غائب — اضغط للتحضير";
+}
+
+// تحديث الإجماليات والنسب بلا إعادة رسم الجدول (حفاظًا على موضع التمرير)
+function updateGridTotals(){
+  const rows = gridFiltered();
+  // ثلاثة أعمدة ثابتة قبل الجلسات: المشارك · الجوال · المسار
+  const FIXED_COLS = 3;
+  const heads = document.querySelectorAll("#grid-body thead th");
+  gridSessions.forEach((s, i) => {
+    const el = heads[i + FIXED_COLS]?.querySelector("div:last-child");
+    if(el) el.textContent = `${rows.filter(r => r.attended.has(s.id)).length} / ${rows.length}`;
+  });
+
+  const counted = gridSessions.filter(s => s.counts_for_certificate);
+  document.querySelectorAll("#grid-body tbody tr").forEach(tr => {
+    // المعرّف من data-uid لا من تفكيك نص الـid (UUID يحوي شرطات)
+    const r = gridRows.find(x => x.user_id === tr.dataset.uid);
+    if(!r) return;
+    const hit = counted.filter(s => r.attended.has(s.id)).length;
+    const pct = counted.length ? Math.round(hit/counted.length*100) : 100;
+    const cell = tr.lastElementChild;
+    cell.textContent = pct + "%";
+    cell.style.color = pct >= certThreshold ? "var(--teal)" : "var(--muted)";
+  });
+}
+
+/* ---- فتح وإغلاق التحضير ---- */
+async function toggleSessionOpen(sessionId, open){
+  const { data, error } = await sb.rpc("set_attendance_open", { p_session_id: sessionId, p_open: open });
+  if(error || !data?.success){
+    showToast("خطأ: " + (data?.error || error?.message), true);
+    return;
+  }
+  const s = gridSessions.find(x => x.id === sessionId);
+  if(s) s.attendance_open = open;
+  logActivity(open ? "فتح التحضير" : "إغلاق التحضير", "prep_session", sessionId, { title: data.title });
+  showToast(`${open ? "فُتح" : "أُغلق"} التحضير — ${data.title}`);
+  drawGrid();
+}
+
+/* ============================================================ */
+
+async function renderPrepSessions(){
+  const main = document.getElementById("prep-root");
+  main.innerHTML = `
     <div id="prep-page-body">
       <div class="card" style="margin-bottom:16px">
         <div class="form-row-2" style="grid-template-columns:2fr 1fr 1fr">
@@ -3806,7 +4189,7 @@ async function togglePrepActive(sessionId, activate){
 }
 async function openPrepModal(p=null){
   const isEdit = !!p;
-  p = p || {title:"",description:"",track_id:"",session_date:"",duration_minutes:60,location:"",is_online:false,capacity:"",session_type:"prep"};
+  p = p || {title:"",description:"",track_id:"",session_date:"",duration_minutes:60,location:"",is_online:false,capacity:"",session_type:"prep",counts_for_certificate:true};
   const { data: tracks } = await sb.from("tracks").select("id,name_ar");
   openModal(`
     <h3>${isEdit ? "تعديل جلسة" : "إضافة جلسة / فعالية"}</h3>
@@ -3822,12 +4205,14 @@ async function openPrepModal(p=null){
         ${(tracks||[]).map(t=>`<option value="${t.id}" ${p.track_id===t.id?"selected":""}>${esc(t.name_ar)}</option>`).join("")}
       </select>
     </div>
-    <div class="field"><label>الموعد</label><input type="datetime-local" id="f-date" value="${p.session_date ? p.session_date.substring(0,16) : ""}"></div>
+    <div class="field"><label>الموعد</label><input type="datetime-local" id="f-date" value="${p.session_date ? toLocalInput(p.session_date) : ""}"></div>
     <div class="form-row-2">
       <div class="field"><label>المدة (دقيقة)</label><input type="number" id="f-duration" value="${p.duration_minutes}"></div>
       <div class="field"><label>السعة القصوى</label><input type="number" id="f-capacity" value="${p.capacity||""}"></div>
     </div>
     <div class="field"><label>الموقع / رابط البث</label><input id="f-location" value="${esc(p.location)}"></div>
+    <div class="field"><label><input type="checkbox" id="f-counts-cert" ${p.counts_for_certificate!==false?"checked":""}> تُحتسب في نسبة حضور الشهادة</label>
+      <p class="hint" style="margin-top:4px">ألغِ التحديد للجلسات الاختيارية حتى لا تؤثر على استحقاق الشهادة</p></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
       <button class="btn btn-primary" onclick="savePrep('${p.id||""}')">حفظ</button>
@@ -3845,6 +4230,7 @@ async function savePrep(id){
     duration_minutes: parseInt(document.getElementById("f-duration").value) || 60,
     capacity: document.getElementById("f-capacity").value ? parseInt(document.getElementById("f-capacity").value) : null,
     location: document.getElementById("f-location").value.trim(),
+    counts_for_certificate: document.getElementById("f-counts-cert").checked,
   };
   if(!payload.title){ showToast("عنوان الجلسة مطلوب", true); return; }
   const q = id ? sb.from("prep_sessions").update(payload).eq("id", id) : sb.from("prep_sessions").insert(payload);
@@ -6251,6 +6637,11 @@ async function renderCertificates(){
     </div>
     <div class="card"><div id="cert-types-table">${skeletonRows(4)}</div></div>
     <div class="card">
+      <h3 style="margin:0 0 4px">نصوص عامة لكل الشهادات</h3>
+      <p class="hint" style="margin-bottom:16px">تظهر بكل الشهادات مهما اختلفت الفئة — اسم البرنامج بالشريط العلوي وسطرا التوقيع بالأسفل</p>
+      <div id="cert-shared-texts">${skeletonRows(2)}</div>
+    </div>
+    <div class="card">
       <div class="toolbar" style="margin-bottom:12px">
         <h3 style="margin:0">حالة الشهادات لكل مشارك</h3>
         <div class="field" style="margin:0"><input id="cert-matrix-search" placeholder="بحث بالاسم..." oninput="filterCertMatrix()"></div>
@@ -6268,7 +6659,7 @@ async function renderCertificates(){
       ${types.map(c => `<tr>
         <td><div style="width:34px;height:34px;border-radius:9px;background:color-mix(in srgb, ${c.badge_color||'#D9A400'} 16%, white);display:flex;align-items:center;justify-content:center"><i data-lucide="${c.badge_icon||'award'}" style="width:17px;height:17px;color:${c.badge_color||'#D9A400'}"></i></div></td>
         <td><strong>${esc(c.name_ar)}</strong></td>
-        <td>${{participant:"المشاركون",mentor:"المرشدون",judge:"المحكّمون",admin:"الإدارة فقط"}[c.role_key] || "عام للجميع"}</td>
+        <td>${{participant:"المشاركون",mentor:"المرشدون",judge:"المحكّمون",admin:"الإدارة فقط"}[c.role_key] || "عام للجميع"}${c.opens_after_phase ? `<br><span style="color:var(--muted);font-size:11.5px">بعد نهاية ${({hackathon:"الهاكثون",mentorship:"الإرشاد",judging:"التحكيم"})[c.opens_after_phase]||""}</span>` : ""}${c.min_sessions ? `<br><span style="color:var(--muted);font-size:11.5px">حد أدنى: ${c.min_sessions} ${c.role_key==="judge"?"مشاريع":"جلسات"}</span>` : ""}</td>
         <td>${c.min_attendance_pct}%</td>
         <td>${c.requires_survey ? '<span class="badge badge-gold">نعم</span>' : '<span class="badge badge-gray">لا</span>'}</td>
         <td>${c.certificates?.[0]?.count ?? 0}</td>
@@ -6280,7 +6671,67 @@ async function renderCertificates(){
       </tbody></table>`;
   if(window.lucide) lucide.createIcons();
 
+  await renderCertSharedTexts();
   await loadCertMatrix();
+}
+
+/* ---------------- نصوص عامة لكل الشهادات ---------------- */
+const CERT_SHARED_FIELDS = [
+  { key:"cert_brand_ar",        label:"اسم البرنامج (عربي)",   ph:"هاكثون السيرة النبوية" },
+  { key:"cert_brand_en",        label:"اسم البرنامج (إنجليزي)", ph:"Prophetic Seerah Hackathon" },
+  { key:"cert_signature_label", label:"سطر التوقيع",            ph:"مع خالص الشكر والتقدير،" },
+  { key:"cert_signature_name",  label:"الجهة الموقّعة",          ph:"فريق هاكثون السيرة النبوية" },
+];
+const CERT_SCALE_OPTIONS = [
+  { v:"0.9",  label:"صغير" },
+  { v:"1",    label:"عادي" },
+  { v:"1.12", label:"كبير" },
+  { v:"1.25", label:"أكبر" },
+];
+
+async function renderCertSharedTexts(){
+  const box = document.getElementById("cert-shared-texts");
+  if(!box) return;
+  const keys = CERT_SHARED_FIELDS.map(f => f.key).concat("cert_body_scale");
+  const { data, error } = await sb.from("platform_settings").select("key,value").in("key", keys);
+  if(error){
+    box.innerHTML = `<div class="alert error" style="display:block">تعذّر التحميل — تأكد من تطبيق ملف 71_certificate_texts.sql</div>`;
+    return;
+  }
+  const map = {};
+  (data||[]).forEach(r => map[r.key] = r.value);
+
+  box.innerHTML = `
+    <div class="form-row-2">
+      ${CERT_SHARED_FIELDS.map(f => `
+        <div class="field">
+          <label>${f.label}</label>
+          <input id="cst-${f.key}" value="${esc(map[f.key] ?? "")}" placeholder="${esc(f.ph)}">
+        </div>`).join("")}
+    </div>
+    <div class="field" style="max-width:230px">
+      <label>حجم نص الشهادة</label>
+      <select id="cst-cert_body_scale">
+        ${CERT_SCALE_OPTIONS.map(o => `<option value="${o.v}" ${String(map.cert_body_scale||"1")===o.v?"selected":""}>${o.label}</option>`).join("")}
+      </select>
+      <p class="hint" style="margin-top:4px">يكبّر أو يصغّر متن الشهادة والاسم معًا</p>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveCertSharedTexts()">حفظ النصوص العامة</button>
+    <span id="cert-shared-alert" style="font-size:12.5px;color:var(--teal);display:none;margin-right:10px">تم الحفظ ✓</span>`;
+}
+
+async function saveCertSharedTexts(){
+  const rows = CERT_SHARED_FIELDS.map(f => ({
+    key: f.key,
+    value: document.getElementById(`cst-${f.key}`).value.trim() || null
+  }));
+  rows.push({ key: "cert_body_scale", value: document.getElementById("cst-cert_body_scale").value });
+  const { error } = await sb.from("platform_settings").upsert(rows);
+  if(error){ showToast("خطأ: " + error.message, true); return; }
+  logActivity("تحديث النصوص العامة للشهادات", "platform_settings");
+  const el = document.getElementById("cert-shared-alert");
+  el.style.display = "inline";
+  setTimeout(() => el.style.display = "none", 2500);
 }
 let certMatrixCache = [];
 async function loadCertMatrix(){
@@ -6304,7 +6755,7 @@ function filterCertMatrix(){
 }
 function renderCertMatrixTable(users){
   const box = document.getElementById("cert-matrix-table");
-  if(!users.length){ box.innerHTML = emptyIllustration("users-round", "ما فيه مشاركين مؤهّلين بعد", "الفرق المكتملة والمؤكدة تظهر هنا"); return; }
+  if(!users.length){ box.innerHTML = emptyIllustration("users-round", "لا يوجد مشاركون مؤهّلون بعد", "الفرق المكتملة والمؤكدة تظهر هنا"); return; }
   if(!users[0]?.certs?.length){ box.innerHTML = `<div class="empty-state">أضف نوع شهادة أولاً</div>`; return; }
 
   const certTypeNames = users[0].certs.map(c => c.cert_type_name);
@@ -6321,7 +6772,7 @@ function renderCertMatrixTable(users){
           return `<td>
             <span class="badge badge-green">صادرة</span>
             <div style="margin-top:5px;display:flex;gap:4px">
-              <button class="btn-link" style="font-size:11px" onclick='previewCertificate(${jsArg({name: u.full_name, typeName: c.cert_type_name, text: c.certificate_text, code: c.verification_code, date: c.issued_at, badgeIcon: c.badge_icon, badgeColor: c.badge_color})})'>معاينة</button>
+              <button class="btn-link" style="font-size:11px" onclick='openCertOverlay(${jsArg({name: u.full_name, typeName: c.cert_type_name, text: c.certificate_text, introText: c.intro_text, sigLabelOverride: c.signature_label, sigNameOverride: c.signature_name, code: c.verification_code, date: c.issued_at})})'>معاينة</button>
               <button class="btn-link" style="font-size:11px;color:var(--danger)" onclick='deleteCertificate("${c.certificate_id}", ${jsArg(u.full_name)})'>حذف</button>
             </div>
           </td>`;
@@ -6354,40 +6805,90 @@ async function deleteCertificate(certId, userName){
   showToast("تم حذف الشهادة");
   loadCertMatrix();
 }
-function previewCertificate({name, typeName, text, code, date, badgeIcon, badgeColor}){
-  const bodyText = (text || "نشهد بأن {{name}} قد أتمّ متطلبات {{type}} بنجاح ضمن فعاليات هاكثون السيرة النبوية.")
-    .replace(/\{\{name\}\}/g, name)
-    .replace(/\{\{type\}\}/g, typeName)
-    .replace(/\{\{date\}\}/g, date ? fmtDate(date) : "")
-    .replace(/\{\{code\}\}/g, code || "");
-  const bColor = badgeColor || "#D9A400";
-  const bIcon = badgeIcon || "award";
 
-  openModal(`
-    <div style="border:3px double var(--gold); border-radius:12px; padding:30px 24px; text-align:center; background:linear-gradient(180deg,#fdfdfb,#f7f5ef); position:relative">
-      <div style="position:absolute; top:16px; left:16px; width:44px; height:44px; border-radius:50%; background:color-mix(in srgb, ${bColor} 16%, white); border:2px solid ${bColor}; display:flex; align-items:center; justify-content:center">
-        <i data-lucide="${bIcon}" style="width:20px;height:20px;color:${bColor}"></i>
-      </div>
-      <div style="display:flex; justify-content:center; align-items:center; gap:14px; margin-bottom:18px">
-        <img src="data:image/png;base64,${QASSIM_LOGO_B64}" style="height:26px">
-        <div style="width:1px;height:20px;background:var(--border)"></div>
-        <img src="data:image/png;base64,${CHAIR_LOGO_B64}" style="height:26px">
-      </div>
-      <div style="font-size:11px; letter-spacing:.1em; color:var(--gold); font-weight:700; margin-bottom:10px">شهادة ${esc(typeName)}</div>
-      <h2 style="margin:0 0 4px; color:var(--ink)">${esc(name)}</h2>
-      <div style="width:60px; height:2px; background:var(--gold); margin:14px auto">&nbsp;</div>
-      <p style="font-size:14px; line-height:1.9; color:var(--ink); margin:16px 0">${esc(bodyText)}</p>
-      <div style="display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted); margin-top:24px; border-top:1px solid var(--border); padding-top:12px">
-        <span>رمز التحقق: ${esc(code||"—")}</span>
-        <span>${date ? fmtDate(date) : ""}</span>
-      </div>
-    </div>
-    <div class="modal-actions" style="margin-top:16px"><button class="btn btn-outline" onclick="closeModal()">إغلاق</button></div>
-  `);
+// نفس رموز التنسيق المستخدمة بصفحات العرض؛ آمنة لأنها تُحوَّل
+// بعد الهروب الأمني ولا تسمح بوسوم HTML مباشرة
+const CERT_FORMAT_BTNS = [
+  { m:"**", label:"عريض",      style:"font-weight:800" },
+  { m:"//", label:"مائل",      style:"font-style:italic" },
+  { m:"__", label:"تحته خط",   style:"text-decoration:underline" },
+  { m:"++", label:"أكبر",      style:"font-size:15px" },
+  { m:"~~", label:"أصغر",      style:"font-size:11px" },
+  { m:"%%", label:"لون الهوية", style:"color:#B8860B" },
+];
+
+// معاينة الشهادة كاملة بالقيم المكتوبة الآن، قبل الحفظ
+async function previewCertTypeDesign(){
+  const typeName = document.getElementById("f-cert-name").value.trim() || "شهادة";
+  const introText = document.getElementById("f-cert-intro").value.trim();
+  const text = document.getElementById("f-cert-text").value.trim();
+  const sigLabel = document.getElementById("f-cert-sig-label").value.trim();
+  const sigName  = document.getElementById("f-cert-sig-name").value.trim();
+
+  await openCertOverlay({
+    name: "اسم صاحب الشهادة",
+    typeName, text, introText,
+    sigLabelOverride: sigLabel || null,
+    sigNameOverride: sigName || null,
+    code: "ENF-XXXX-0000",
+    date: new Date().toISOString()
+  });
 }
+
+function certToolbarHtml(targetId){
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+    ${CERT_FORMAT_BTNS.map(b => `
+      <button type="button" onclick="wrapCertText('${targetId}','${b.m}')"
+        style="padding:5px 11px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-family:inherit;font-size:12px;${b.style}">${b.label}</button>
+    `).join("")}
+  </div>`;
+}
+
+// يلفّ النص المحدَّد بالرمز، أو يزيله لو كان ملفوفًا أصلًا
+function wrapCertText(id, marker){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const s = el.selectionStart, e = el.selectionEnd;
+  const val = el.value;
+  const sel = val.slice(s, e);
+  if(!sel){ showToast("حدّد النص المراد تنسيقه أولًا", true); el.focus(); return; }
+
+  const wrapped = sel.startsWith(marker) && sel.endsWith(marker) && sel.length > marker.length*2;
+  const next = wrapped
+    ? sel.slice(marker.length, -marker.length)
+    : marker + sel + marker;
+
+  el.value = val.slice(0, s) + next + val.slice(e);
+  el.focus();
+  el.setSelectionRange(s, s + next.length);
+  updateCertTextPreview();
+}
+
+// تحويل الرموز لعرض المعاينة — نسخة مطابقة لمنطق صفحات العرض
+function certRichPreview(escaped){
+  return String(escaped)
+    .replace(/\*\*([\s\S]+?)\*\*/g, '<b style="font-weight:800">$1</b>')
+    .replace(/\/\/([\s\S]+?)\/\//g, '<i>$1</i>')
+    .replace(/__([\s\S]+?)__/g,     '<u>$1</u>')
+    .replace(/\+\+([\s\S]+?)\+\+/g, '<span style="font-size:1.28em">$1</span>')
+    .replace(/~~([\s\S]+?)~~/g,     '<span style="font-size:.82em">$1</span>')
+    .replace(/%%([\s\S]+?)%%/g,     '<span style="color:#B8860B">$1</span>');
+}
+
+function updateCertTextPreview(){
+  const box = document.getElementById("cert-text-preview");
+  if(!box) return;
+  const intro = document.getElementById("f-cert-intro")?.value || "";
+  const body  = document.getElementById("f-cert-text")?.value || "";
+  const lines = (intro + "\n" + body).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if(!lines.length){ box.innerHTML = `<span style="color:var(--muted)">اكتب نصًا لتظهر المعاينة</span>`; return; }
+  // esc أولًا ثم التحويل — نفس ترتيب صفحات العرض
+  box.innerHTML = lines.map(l => `<div style="margin-bottom:4px">${certRichPreview(esc(l))}</div>`).join("");
+}
+
 function openCertTypeModal(c=null){
   const isEdit = !!c;
-  c = c || {key:"",name_ar:"",min_attendance_pct:50,requires_survey:false,certificate_text:"",role_key:"participant",badge_icon:"award",badge_color:"#D9A400"};
+  c = c || {key:"",name_ar:"",min_attendance_pct:50,requires_survey:false,certificate_text:"",intro_text:"يتقدّم %%مركز الابتكار والملكية الفكرية%% بجامعة القصيم بالشكر والتقدير إلى",signature_label:"",signature_name:"",role_key:"participant",badge_icon:"award",badge_color:"#B8860B"};
   const BADGE_ICONS = ["award","medal","trophy","star","ribbon","shield-check","badge-check","crown"];
   openModal(`
     <h3>${isEdit ? "تعديل نوع شهادة" : "إضافة نوع شهادة"}</h3>
@@ -6403,7 +6904,18 @@ function openCertTypeModal(c=null){
       </select>
       <p class="hint" style="margin-top:4px">تحدد لمن تظهر هذه الشهادة بصفحته الشخصية</p>
     </div>
-    <div class="field"><label>الحد الأدنى لنسبة الحضور (%)</label><input type="number" id="f-cert-attendance" value="${c.min_attendance_pct}"></div>
+    <div class="field"><label>الحد الأدنى لنسبة الحضور (%)</label><input type="number" id="f-cert-attendance" value="${c.min_attendance_pct}">
+      <p class="hint" style="margin-top:4px">للمشاركين: نسبة حضور الجلسات المحتسبة للشهادة</p></div>
+    <div class="field"><label>الحد الأدنى للجلسات</label><input type="number" min="0" id="f-cert-min-sessions" value="${c.min_sessions || 0}">
+      <p class="hint" style="margin-top:4px">للمرشد: جلسات إرشاد منعقدة · للمحكّم: مشاريع قيّمها · 0 = بلا شرط</p></div>
+    <div class="field"><label>لا تُتاح قبل نهاية</label>
+      <select id="f-cert-after-phase">
+        <option value="" ${!c.opens_after_phase?"selected":""}>متاحة فور اكتمال الشروط</option>
+        <option value="hackathon" ${c.opens_after_phase==="hackathon"?"selected":""}>آخر يوم في الهاكثون</option>
+        <option value="mentorship" ${c.opens_after_phase==="mentorship"?"selected":""}>آخر يوم في الإرشاد</option>
+        <option value="judging" ${c.opens_after_phase==="judging"?"selected":""}>آخر يوم في التحكيم</option>
+      </select>
+      <p class="hint" style="margin-top:4px">يُحسب الموعد من جدول البرنامج في الإعدادات العامة</p></div>
     <div class="field"><label><input type="checkbox" id="f-cert-survey" ${c.requires_survey?"checked":""}> يشترط تعبئة استبيان</label></div>
     <div class="field"><label><input type="checkbox" id="f-cert-active" ${c.is_active!==false?"checked":""}> نشط (يظهر ويمكن إصداره)</label></div>
 
@@ -6423,9 +6935,35 @@ function openCertTypeModal(c=null){
       <input type="color" id="f-cert-badge-color" value="${c.badge_color||'#D9A400'}" style="width:60px;height:36px;padding:2px;cursor:pointer">
     </div>
 
+    <div class="field"><label>سطر التقديم (فوق الاسم)</label>
+      ${certToolbarHtml("f-cert-intro")}
+      <textarea id="f-cert-intro" rows="2" oninput="updateCertTextPreview()" placeholder="يتقدّم مركز الابتكار والملكية الفكرية بجامعة القصيم بالشكر والتقدير إلى">${esc(c.intro_text||"")}</textarea>
+      <p class="hint" style="margin-top:4px">يظهر مباشرة قبل اسم صاحب الشهادة — اتركه فارغًا لإخفائه</p>
+    </div>
+
     <div class="field"><label>نص الشهادة</label>
-      <textarea id="f-cert-text" rows="4" placeholder="نشهد بأن {{name}} قد أتمّ متطلبات {{type}} بنجاح ضمن فعاليات هاكثون السيرة النبوية بتاريخ {{date}}">${esc(c.certificate_text||"")}</textarea>
-      <p class="hint" style="margin-top:4px">استخدم {{name}} للاسم، {{type}} لنوع الشهادة، {{date}} للتاريخ، {{code}} لرمز التحقق</p>
+      ${certToolbarHtml("f-cert-text")}
+      <textarea id="f-cert-text" rows="5" oninput="updateCertTextPreview()" placeholder="نشهد بأن {{name}} قد أتمّ متطلبات {{type}} بنجاح ضمن فعاليات هاكثون السيرة النبوية بتاريخ {{date}}">${esc(c.certificate_text||"")}</textarea>
+      <p class="hint" style="margin-top:4px">كل سطر تكتبه يظهر كفقرة مستقلة بالشهادة. المتغيرات: {{name}} للاسم، {{type}} لنوع الشهادة، {{date}} للتاريخ، {{code}} لرمز التحقق</p>
+      <div style="margin-top:10px;padding:12px 14px;background:#f8f9fb;border:1px solid var(--border);border-radius:10px">
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">معاينة التنسيق</div>
+        <div id="cert-text-preview" style="font-size:14px;line-height:1.9;color:var(--ink)"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>توقيع خاص بهذا النوع (اختياري)</label>
+      <p class="hint" style="margin:-2px 0 8px">اتركهما فارغين ليُستخدم التوقيع العام المشترك لكل الشهادات</p>
+      <div class="form-row-2">
+        <div class="field" style="margin:0">
+          ${certToolbarHtml("f-cert-sig-label")}
+          <input id="f-cert-sig-label" value="${esc(c.signature_label||"")}" placeholder="مع خالص الشكر والتقدير،">
+        </div>
+        <div class="field" style="margin:0">
+          ${certToolbarHtml("f-cert-sig-name")}
+          <input id="f-cert-sig-name" value="${esc(c.signature_name||"")}" placeholder="فريق هاكثون السيرة النبوية">
+        </div>
+      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         <button type="button" class="btn-link" style="font-size:11.5px" onclick="applyCertTextSuggestion('participant')">صيغة مقترحة: مشارك</button>
         <button type="button" class="btn-link" style="font-size:11.5px" onclick="applyCertTextSuggestion('mentor')">صيغة مقترحة: مرشد</button>
@@ -6435,9 +6973,11 @@ function openCertTypeModal(c=null){
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-outline" onclick="previewCertTypeDesign()">معاينة الشهادة</button>
       <button class="btn btn-primary" onclick="saveCertType('${c.id||""}')">حفظ</button>
     </div>
   `);
+  updateCertTextPreview();
 }
 function applyCertTextSuggestion(kind){
   const suggestions = {
@@ -6464,11 +7004,18 @@ async function saveCertType(id){
   const requires_survey = document.getElementById("f-cert-survey").checked;
   const is_active = document.getElementById("f-cert-active").checked;
   const certificate_text = document.getElementById("f-cert-text").value.trim();
+  const intro_text = document.getElementById("f-cert-intro").value.trim();
+  const signature_label = document.getElementById("f-cert-sig-label").value.trim();
+  const signature_name  = document.getElementById("f-cert-sig-name").value.trim();
   const badge_icon = document.getElementById("f-cert-badge-icon").value || "award";
   const badge_color = document.getElementById("f-cert-badge-color").value || "#D9A400";
+  const min_sessions = parseInt(document.getElementById("f-cert-min-sessions").value) || 0;
+  const opens_after_phase = document.getElementById("f-cert-after-phase").value || null;
   if(!key || !name_ar){ showToast("المفتاح والاسم مطلوبان", true); return; }
 
-  const payload = { name_ar, role_key, min_attendance_pct, requires_survey, is_active, certificate_text, badge_icon, badge_color };
+  const payload = { name_ar, role_key, min_attendance_pct, requires_survey, is_active, certificate_text, intro_text: intro_text || null,
+    signature_label: signature_label || null, signature_name: signature_name || null,
+    badge_icon, badge_color, min_sessions, opens_after_phase };
   if(!id) payload.key = key;
   const q = id ? sb.from("certificate_types").update(payload).eq("id", id) : sb.from("certificate_types").insert({...payload, key});
   const { error } = await q;
@@ -6478,16 +7025,91 @@ async function saveCertType(id){
   renderCertificates();
 }
 
-/* ============================================================
-   8. الاستبيانات
-   ============================================================ */
+/* معاينة تصميم الشهادة: التصميم الموحّد بهوية السيرة في cert.js */
+async function openCertOverlay(data){ SeeraCert.open(Object.assign({ roleKey: "participant" }, data)); }
+
+async function loadSurveyStats(){
+  const box = document.getElementById("survey-stats");
+  if(!box) return;
+
+  const { data: st } = await sb.rpc("get_survey_stats");
+  if(!st || st.error){ box.innerHTML = ""; return; }
+
+  const npsColor = st.nps >= 50 ? "var(--teal)"
+                 : st.nps >= 0  ? "var(--gold)" : "var(--danger)";
+
+  box.innerHTML = `
+    <div class="sv-grid">
+      <div class="sv-box"><div class="n">${st.respondents ?? 0}</div>
+        <div class="l">مشاركًا أجاب</div></div>
+      <div class="sv-box"><div class="n">${st.response_rate ?? 0}%</div>
+        <div class="l">نسبة الاستجابة</div></div>
+      <div class="sv-box"><div class="n">${st.nps_avg ?? "—"}</div>
+        <div class="l">متوسط التوصية</div></div>
+      <div class="sv-box"><div class="n" style="color:${npsColor}">${st.nps ?? "—"}</div>
+        <div class="l">مؤشّر NPS</div></div>
+    </div>
+    ${(st.top_questions || []).length ? `
+      <div class="card" style="margin-bottom:14px">
+        <h3 style="margin:0 0 12px">أعلى الأسئلة تقييمًا</h3>
+        ${st.top_questions.map(q => `
+          <div class="sv-q">
+            <div class="sv-q-t">${esc(q.question || "—")}</div>
+            <div class="sv-q-bar"><i style="width:${Math.min(100, (q.avg_score/5)*100)}%"></i></div>
+            <div class="sv-q-n">${q.avg_score}</div>
+          </div>`).join("")}
+      </div>` : ""}`;
+  if(window.lucide) lucide.createIcons();
+}
+
+async function exportSurveyResults(){
+  const { data, error } = await sb.from("survey_answers_flat").select("*");
+  if(error){ showToast(error.message, true); return; }
+  if(!data?.length){ showToast("لا إجابات بعد", true); return; }
+
+  const head = ["الاستبيان", "المرحلة", "المشارك", "السؤال",
+                "الإجابة", "درجة التوصية", "وقت الإجابة"];
+  const rows = data.map(r => [
+    r.الاستبيان ?? "", r.المرحلة ?? "", r.المشارك ?? "",
+    r.السؤال ?? "", r.الإجابة ?? "", r.درجة_التوصية ?? "",
+    r.وقت_الإجابة ? new Date(r.وقت_الإجابة).toLocaleString("ar-SA") : ""
+  ]);
+
+  // BOM ليقرأ Excel العربية صحيحة
+  const csv = "\ufeff" + [head, ...rows]
+    .map(x => x.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    .join("\r\n");
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `نتائج-الاستبيانات-${new Date().toLocaleDateString("en-CA")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`صُدّرت ${data.length} إجابة`);
+}
+
 async function renderSurveys(){
   const main = document.getElementById("main-content");
   main.innerHTML = `<div class="page-header">
       <div><h1>الاستبيانات وقياس الرضا</h1><p>استبيانات كل مرحلة ونتائجها المجمّعة</p></div>
-      <button class="btn btn-primary" onclick="openSurveyModal()">+ إضافة استبيان</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="width:auto" onclick="exportSurveyResults()">
+          <i data-lucide="download"></i> تصدير النتائج</button>
+        <button class="btn btn-primary" onclick="openSurveyModal()">+ إضافة استبيان</button>
+      </div>
+    </div>
+    <div id="survey-stats"></div>
+    <div class="card" style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+      <div class="field" style="margin:0;max-width:260px"><label>الحد الأدنى من الحضور لفتح الاستبيان</label>
+        <input type="number" min="0" id="f-survey-min-att" value="1"></div>
+      <button class="btn btn-outline btn-sm" style="width:auto" onclick="saveSurveyMinAttendance()">حفظ</button>
+      <p class="hint" style="margin:0 0 8px">عدد الجلسات التي يجب أن يُسجَّل حضور المشارك فيها قبل أن يظهر له أي استبيان · 0 = بلا شرط</p>
     </div>
     <div class="card"><div id="surveys-table">${skeletonRows(4)}</div></div>`;
+
+  loadSurveyStats();
+  sb.from("platform_settings").select("value").eq("key","survey_min_attendance").maybeSingle()
+    .then(({data}) => { const el = document.getElementById("f-survey-min-att"); if(el && data && data.value !== null) el.value = data.value; });
 
   const { data, error } = await sb.from("surveys").select("*, survey_responses(count)").order("created_at", {ascending:false});
   const box = document.getElementById("surveys-table");
@@ -6497,12 +7119,13 @@ async function renderSurveys(){
   const stageLabels = {prep:"التحضير", mentorship:"الإرشاد", judging:"التحكيم", closing:"الختام", overall:"عام"};
 
   box.innerHTML = `<table><thead><tr>
-    <th>الاستبيان</th><th>المرحلة</th><th>عدد الأسئلة</th><th>الحالة</th><th>عدد الردود</th><th></th>
+    <th>الاستبيان</th><th>المرحلة</th><th>عدد الأسئلة</th><th>فترة التعبئة</th><th>الحالة</th><th>عدد الردود</th><th></th>
     </tr></thead><tbody>
     ${data.map(s => `<tr>
       <td><strong>${esc(s.title)}</strong></td>
       <td>${stageLabels[s.target_stage]||s.target_stage}</td>
       <td>${(s.questions_json||[]).length}</td>
+      <td style="font-size:12px;color:var(--muted)">${s.opens_at ? "من " + fmtDateTimeAr(s.opens_at) : "مفتوح"}${s.closes_at ? "<br>إلى " + fmtDateTimeAr(s.closes_at) : ""}</td>
       <td>${s.is_active ? '<span class="badge badge-green">نشط</span>' : '<span class="badge badge-gray">متوقف</span>'}</td>
       <td>${s.survey_responses?.[0]?.count ?? 0}</td>
       <td class="row-actions">
@@ -6512,11 +7135,21 @@ async function renderSurveys(){
     </tr>`).join("")}
     </tbody></table>`;
 }
+async function saveSurveyMinAttendance(){
+  const v = parseInt(document.getElementById("f-survey-min-att").value);
+  if(isNaN(v) || v < 0){ showToast("أدخل رقمًا صحيحًا (0 فأكثر)", true); return; }
+  const { error } = await sb.from("platform_settings").upsert({ key: "survey_min_attendance", value: String(v) }, { onConflict: "key" });
+  if(error){ showToast("خطأ: " + error.message, true); return; }
+  logActivity("تعديل الحد الأدنى من الحضور للاستبيان", "platform_settings", null, { value: v });
+  showToast(v === 0 ? "حُفظ — الاستبيان متاح دون شرط حضور" : `حُفظ — يظهر الاستبيان بعد حضور ${v} جلسة`);
+}
 let surveyQuestionsDraft = [];
 function openSurveyModal(s=null){
   const isEdit = !!s;
   s = s || {title:"", target_stage:"overall", is_active:true, questions_json:[]};
   surveyQuestionsDraft = JSON.parse(JSON.stringify(s.questions_json || []));
+  normalizeQuestions();  // توحيد النوع ومفتاح النص القادمين من البذور
+  dedupeQuestionIds();   // إصلاح الاستبيانات المحفوظة بمعرّفات مكرَّرة
   openModal(`
     <h3 style="margin-bottom:16px">${isEdit ? "تعديل استبيان" : "إضافة استبيان"}</h3>
     <div class="field"><label>عنوان الاستبيان</label><input id="f-survey-title" value="${esc(s.title)}"></div>
@@ -6528,6 +7161,10 @@ function openSurveyModal(s=null){
         <option value="closing" ${s.target_stage==='closing'?'selected':''}>الختام</option>
         <option value="overall" ${s.target_stage==='overall'?'selected':''}>عام</option>
       </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>يُفتح في (اختياري)</label><input type="datetime-local" id="f-survey-opens" value="${s.opens_at ? toLocalInput(s.opens_at) : ""}"></div>
+      <div class="field"><label>يُغلق في (اختياري)</label><input type="datetime-local" id="f-survey-closes" value="${s.closes_at ? toLocalInput(s.closes_at) : ""}"></div>
     </div>
     <div class="field"><label><input type="checkbox" id="f-survey-active" ${s.is_active!==false?"checked":""}> نشط</label></div>
 
@@ -6542,6 +7179,33 @@ function openSurveyModal(s=null){
   `);
   renderSurveyQuestionsList();
 }
+// الاستبيانات المحفوظة قبل الإصلاح قد تحمل معرّفات مكرَّرة.
+// نصحّحها عند الفتح، ويثبت التصحيح عند الحفظ.
+// البذور القديمة تستخدم النوع "rating" والمفتاح question_ar،
+// وكلاهما غير مدعوم بالواجهات. نوحّدهما عند الفتح.
+function normalizeQuestions(){
+  let fixed = 0;
+  surveyQuestionsDraft.forEach(q => {
+    if(q.type === "rating"){ q.type = "nps"; fixed++; }
+    if(!q.label && q.question_ar){ q.label = q.question_ar; delete q.question_ar; fixed++; }
+    if(!["nps","text","choice"].includes(q.type)){ q.type = "text"; fixed++; }
+  });
+  if(fixed) showToast(`صُحِّح ${fixed} حقلًا بصيغة قديمة — اضغط حفظ للتثبيت`);
+}
+
+function dedupeQuestionIds(){
+  const seen = new Set();
+  let fixed = 0;
+  surveyQuestionsDraft.forEach(q => {
+    if(!q.id || seen.has(q.id)){
+      q.id = newQuestionId();
+      fixed++;
+    }
+    seen.add(q.id);
+  });
+  if(fixed) showToast(`صُحِّح ${fixed} سؤال بمعرّف مكرَّر — اضغط حفظ للتثبيت`);
+}
+
 function renderSurveyQuestionsList(){
   const box = document.getElementById("survey-questions-list");
   if(!box) return;
@@ -6561,8 +7225,19 @@ function renderSurveyQuestionsList(){
     </div>
   `).join("");
 }
+function newQuestionId(){
+  const used = new Set(surveyQuestionsDraft.map(q => q.id));
+  let id;
+  do {
+    id = "q_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  } while(used.has(id));
+  return id;
+}
+
 function addSurveyQuestion(){
-  surveyQuestionsDraft.push({ id: "q_"+Date.now(), label:"", type:"nps", options:[] });
+  // Date.now() وحده يتكرر عند الضغط السريع (نفس الملّي ثانية)،
+  // فتتطابق معرّفات الأسئلة وتنكسر النجوم بصفحة المشارك
+  surveyQuestionsDraft.push({ id: newQuestionId(), label:"", type:"nps", options:[] });
   renderSurveyQuestionsList();
 }
 async function saveSurvey(id){
@@ -6572,7 +7247,10 @@ async function saveSurvey(id){
   if(!title){ showToast("العنوان مطلوب", true); return; }
   if(!surveyQuestionsDraft.length){ showToast("أضف سؤال واحد على الأقل", true); return; }
 
-  const payload = { title, target_stage, is_active, questions_json: surveyQuestionsDraft };
+  const opensV = document.getElementById("f-survey-opens").value, closesV = document.getElementById("f-survey-closes").value;
+  const opens_at = opensV ? new Date(opensV).toISOString() : null, closes_at = closesV ? new Date(closesV).toISOString() : null;
+  if(opens_at && closes_at && closes_at <= opens_at){ showToast("موعد الإغلاق يجب أن يكون بعد موعد الفتح", true); return; }
+  const payload = { title, target_stage, is_active, questions_json: surveyQuestionsDraft, opens_at, closes_at };
   const q = id ? sb.from("surveys").update(payload).eq("id", id) : sb.from("surveys").insert(payload);
   const { error } = await q;
   if(error) return showToast("خطأ: " + error.message, true);

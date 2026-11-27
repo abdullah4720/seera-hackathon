@@ -1323,14 +1323,28 @@ async function renderSurveysTab(){
   const body = document.getElementById("dash-tab-body");
   body.innerHTML = `<div class="card">جاري التحميل...</div>`;
 
-  const { data: surveys, error } = await sb.from("surveys").select("*").eq("is_active", true);
+  // my_surveys يطبّق الشروط في القاعدة: مفعّل · داخل نافذته ·
+  // والمشارك حضر ما يكفي. فلا نعرض ما لا يستطيع تعبئته.
+  const { data: surveys, error } = await sb.from("my_surveys").select("*");
   if(error){ body.innerHTML = `<div class="card"><p class="hint">خطأ: ${esc(error.message)}</p></div>`; return; }
 
   const { data: myResponses } = await sb.from("survey_responses").select("survey_id").eq("user_id", currentUser.id);
   const answeredIds = new Set((myResponses||[]).map(r => r.survey_id));
 
   if(!surveys || !surveys.length){
-    body.innerHTML = `<div class="card"><h2>الاستبيانات</h2><p class="hint">لا توجد استبيانات متاحة حاليًا</p></div>`;
+    // نفرّق بين «لا استبيانات» و«لم تحضر بعد» — الرسالة الأولى
+    // تُوهم المشارك أن لا شيء مطلوب منه.
+    const { data: gate } = await sb.rpc("can_take_survey", { p_user_id: currentUser.id });
+    const { count: attended } = await sb.from("prep_attendance")
+      .select("id", { count: "exact", head: true }).eq("user_id", currentUser.id);
+
+    body.innerHTML = `<div class="card"><h2>الاستبيانات</h2>
+      <p class="hint">${gate === false
+        ? "يُتاح الاستبيان بعد تسجيل حضوركم في جلسات التحضير."
+        : "لا توجد استبيانات متاحة حاليًا"}</p>
+      ${gate === false && attended ? `<p class="hint" style="margin-top:6px">
+        حضوركم المسجَّل: <bdi>${attended}</bdi> جلسة</p>` : ""}
+    </div>`;
     return;
   }
 
@@ -1353,8 +1367,12 @@ function openSurveyForm(survey){
     <p class="sub" style="margin-bottom:20px">إجاباتك تساعدنا نحسّن البرنامج — تُرسَل مرة وحدة فقط</p>
     <div id="survey-form-fields">
       ${questions.map((q, i) => {
-        if(q.type === "nps"){
-          return `<div class="field"><label>${esc(q.label)}</label>
+        // نص السؤال قد يكون بمفتاح label (لوحة التحكم) أو
+        // question_ar (البذور القديمة)
+        const qLabel = q.label || q.question_ar || "";
+        // rating مرادف قديم لـnps — نقبله حتى لا يسقط لمربع نص
+        if(q.type === "nps" || q.type === "rating"){
+          return `<div class="field"><label>${esc(qLabel)}</label>
             <div class="star-rating" data-qid="${q.id}" style="display:flex;gap:6px;justify-content:center;margin-top:8px" onmouseleave="resetStarsPreview('${q.id}')">
               ${Array.from({length:5},(_,i)=>`
                 <i data-lucide="star" data-star-value="${(i+1)*2}" data-qid="${q.id}"
@@ -1367,7 +1385,7 @@ function openSurveyForm(survey){
           </div>`;
         }
         if(q.type === "choice"){
-          return `<div class="field"><label>${esc(q.label)}</label>
+          return `<div class="field"><label>${esc(qLabel)}</label>
             ${(q.options||[]).map(o => `
               <label style="display:block;padding:6px 0;font-size:13.5px">
                 <input type="radio" name="q_${q.id}" value="${esc(o)}" data-qtype="choice" data-qid="${q.id}"> ${esc(o)}
@@ -1375,7 +1393,7 @@ function openSurveyForm(survey){
             `).join("")}
           </div>`;
         }
-        return `<div class="field"><label>${esc(q.label)}</label><textarea rows="3" data-qtype="text" data-qid="${q.id}"></textarea></div>`;
+        return `<div class="field"><label>${esc(qLabel)}</label><textarea rows="3" data-qtype="text" data-qid="${q.id}"></textarea></div>`;
       }).join("")}
     </div>
     <div id="survey-alert" class="alert"></div>
@@ -2439,13 +2457,20 @@ async function renderCertsTab(){
   for(const t of (types||[])){
     const issued = issuedMap[t.id];
     let eligibilityHtml = "";
+    let canIssue = false;
     if(!issued){
       const { data: elig } = await sb.rpc("check_certificate_eligibility", { p_user_id: currentUser.id, p_cert_type_key: t.key });
+      canIssue = !!elig?.eligible;
       const pct = elig?.attendance_pct ?? 0;
       const req = elig?.required_attendance_pct ?? 0;
+      const lines = [];
+      if(req > 0) lines.push(`نسبة الحضور <bdi>${pct}%</bdi> (المطلوب <bdi>${req}%</bdi>)`);
+      if(t.requires_survey) lines.push(elig?.survey_completed ? "تم إكمال الاستبيان ✓" : "يتبقّى إكمال الاستبيان");
       eligibilityHtml = `
-        <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(pct,100)}%"></div></div>
-        <span class="hint">نسبة الحضور ${pct}% (المطلوب ${req}%)${t.requires_survey ? (elig?.survey_completed ? " · تم إكمال الاستبيان" : " · يتبقّى إكمال الاستبيان") : ""}</span>
+        ${req > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width:${Math.min(pct,100)}%"></div></div>` : ""}
+        ${lines.length ? `<span class="hint">${lines.join(" · ")}</span>` : ""}
+        ${!canIssue && elig?.reason ? `<div class="hint" style="margin-top:6px;color:var(--gold-d, #8A6A00)">${esc(elig.reason)}</div>` : ""}
+        ${canIssue ? `<div class="hint" style="margin-top:6px;color:#0F7B6C">اكتملت الشروط — يمكنك إصدار الشهادة الآن</div>` : ""}
       `;
     }
     html += `
@@ -2455,8 +2480,8 @@ async function renderCertsTab(){
           ${issued ? `<span class="meta eligible-yes">صادرة بتاريخ ${fmtDate(issued.issued_at)} · رمز التحقق: ${esc(issued.verification_code)}</span>` : eligibilityHtml}
         </div>
         ${issued
-          ? `<button class="btn btn-primary" style="width:auto;padding:9px 16px" onclick='SeeraCert.open(${jsArg({name: myFullName, typeName: t.name_ar, text: t.certificate_text, roleKey: t.role_key, code: issued.verification_code, date: issued.issued_at})})'>عرض الشهادة</button>`
-          : `<button class="btn btn-outline" style="width:auto;padding:9px 16px" onclick="issueCertificate('${t.key}')">إصدار الشهادة</button>`
+          ? `<button class="btn btn-primary" style="width:auto;padding:9px 16px" onclick='SeeraCert.open(${jsArg({name: myFullName, typeName: t.name_ar, text: t.certificate_text, introText: t.intro_text, signatureLabel: t.signature_label, signatureName: t.signature_name, roleKey: t.role_key, code: issued.verification_code, date: issued.issued_at})})'>عرض الشهادة</button>`
+          : `<button class="btn ${canIssue ? "btn-primary" : "btn-outline"}" style="width:auto;padding:9px 16px" ${canIssue ? "" : "disabled title='الشروط غير مكتملة بعد'"} onclick="issueCertificate('${t.key}')">إصدار الشهادة</button>`
         }
       </div>
     `;

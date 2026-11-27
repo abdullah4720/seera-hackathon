@@ -115,7 +115,7 @@
     <div class="header-row">
       <div>
         <h1 id="facilitator-welcome">لوحة الميسّرين</h1>
-        <p>تسجيل حضور جلسات التحضير — يدويًا أو عبر مسح QR</p>
+        <p>لوحة الميسّر — هاكثون السيرة النبوية</p>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button id="theme-toggle" onclick="toggleTheme()" title="تبديل الوضع الداكن/الفاتح" style="background:none;border:1px solid rgba(255,255,255,.25);border-radius:8px;width:32px;height:32px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><i data-lucide="moon" style="width:15px;height:15px"></i></button>
@@ -194,7 +194,7 @@ async function handleGateLogin(){
   document.getElementById("auth-gate-screen").style.display = "none";
   document.getElementById("content-screen").style.display = "block";
   if(window.lucide) lucide.createIcons();
-  renderSessionsList();
+  startFacilitator();
 }
 async function handleLogout(){
   await sb.auth.signOut();
@@ -214,7 +214,7 @@ async function handleLogout(){
       document.getElementById("auth-gate-screen").style.display = "none";
       document.getElementById("content-screen").style.display = "block";
       if(window.lucide) lucide.createIcons();
-      renderSessionsList();
+      startFacilitator();
     }
   }
 })();
@@ -233,22 +233,78 @@ async function fetchRoster(trackId){
   }));
 }
 
+/* ---------------- صلاحيات الميسّر ----------------
+   teams = حضور الفرق · mentors = تحضير المرشدين · judges = تحضير المحكّمين
+   تُفرض في قاعدة البيانات؛ هنا نُظهر التبويبات المسموحة فقط. */
+let FAC_PERMS = [];
+const MODE_PERM = { sessions:"teams", matrix:"teams", teams:"teams", mentors:"mentors", judges:"judges" };
+async function startFacilitator(){
+  const { data } = await sb.rpc("my_facilitator_permissions");
+  FAC_PERMS = Array.isArray(data) ? data : [];
+  const first = ["sessions","mentors","judges"].find(m => FAC_PERMS.includes(MODE_PERM[m]));
+  if(!first){
+    document.getElementById("main-view").innerHTML = `<div class="card"><div class="empty-state">لم تُسنَد إليك مهام بعد — تواصل مع إدارة الهاكثون</div></div>`;
+    return;
+  }
+  switchMainMode(first);
+}
+
 /* ---------------- مبدّل العرض الرئيسي ---------------- */
-let mainMode = "sessions"; // sessions | matrix | teams | mentors
+let mainMode = "sessions"; // sessions | matrix | teams | mentors | judges
 function mainModeSwitcherHtml(){
-  return `<div class="sub-tabs" style="max-width:580px;margin-bottom:18px">
-    <button class="sub-tab ${mainMode==='sessions'?'active':''}" onclick="switchMainMode('sessions')">الجلسات</button>
-    <button class="sub-tab ${mainMode==='matrix'?'active':''}" onclick="switchMainMode('matrix')">الحضور الشامل</button>
-    <button class="sub-tab ${mainMode==='teams'?'active':''}" onclick="switchMainMode('teams')">الفرق</button>
-    <button class="sub-tab ${mainMode==='mentors'?'active':''}" onclick="switchMainMode('mentors')">حضور المرشدين</button>
+  const tabs = [
+    ["sessions","الجلسات"], ["matrix","الحضور الشامل"], ["teams","الفرق"],
+    ["mentors","حضور المرشدين"], ["judges","حضور المحكّمين"]
+  ].filter(([m]) => FAC_PERMS.includes(MODE_PERM[m]));
+  if(tabs.length < 2) return "";
+  return `<div class="sub-tabs" style="max-width:${tabs.length * 125}px;margin-bottom:18px">
+    ${tabs.map(([m, label]) => `<button class="sub-tab ${mainMode===m?'active':''}" onclick="switchMainMode('${m}')">${label}</button>`).join("")}
   </div>`;
 }
 function switchMainMode(mode){
+  if(!FAC_PERMS.includes(MODE_PERM[mode])) return;
   mainMode = mode;
   if(mode === "sessions")      renderSessionsList();
   else if(mode === "mentors")  renderMentorPresence();
+  else if(mode === "judges")   renderJudgePresence();
   else if(mode === "teams")    renderTeamsView();
   else                          renderAttendanceMatrix();
+}
+
+/* ---------------- حضور المحكّمين (تسجيل فقط) ---------------- */
+async function renderJudgePresence(){
+  currentView = "judges";
+  const box = document.getElementById("main-view");
+  box.innerHTML = mainModeSwitcherHtml() + `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
+  const { data, error } = await sb.rpc("facilitator_judges");
+  if(error){ box.innerHTML = mainModeSwitcherHtml() + `<div class="card"><p class="hint">تعذّر التحميل</p></div>`; return; }
+  const day = (d) => new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"});
+  const judges = (data || []).map(j => Object.assign(j, { here: !!(j.judge_present_at && day(j.judge_present_at) === day(Date.now())) }));
+  if(!judges.length){ box.innerHTML = mainModeSwitcherHtml() + `<div class="card"><p class="hint">لا محكّمين معتمدين بعد</p></div>`; return; }
+  const present = judges.filter(j => j.here).length;
+  box.innerHTML = mainModeSwitcherHtml() + `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div><strong style="font-size:15px">حضور المحكّمين اليوم</strong>
+          <p class="hint" style="margin:4px 0 0">للمتابعة فقط — لا يؤثر على التحكيم</p></div>
+        <div style="font-size:14px;color:var(--muted)"><bdi>${present}</bdi> من <bdi>${judges.length}</bdi> حاضر</div>
+      </div>
+    </div>
+    <div class="card"><table><thead><tr><th>المحكّم</th><th>التخصص</th><th>الجهة</th><th>الحالة</th><th></th></tr></thead><tbody>
+      ${judges.map(j => `<tr>
+        <td><strong>${esc(j.full_name || "—")}</strong></td>
+        <td>${esc(j.specialization || "—")}</td>
+        <td>${esc(j.organization || "—")}</td>
+        <td>${j.here ? `<span class="badge badge-green">حاضر</span>` : `<span class="badge" style="background:#EEF0F5;color:#6B7A99">غير مسجَّل</span>`}</td>
+        <td style="text-align:left"><button class="btn ${j.here ? 'btn-outline' : 'btn-primary'}" style="width:auto;padding:6px 16px;font-size:12.5px"
+          onclick="toggleJudgePresence('${j.id}', ${!j.here})">${j.here ? 'تسجيل الانصراف' : 'تسجيل الحضور'}</button></td>
+      </tr>`).join("")}
+    </tbody></table></div>`;
+}
+async function toggleJudgePresence(userId, present){
+  const { data, error } = await sb.rpc("set_judge_presence", { p_user_id: userId, p_present: present });
+  if(error || !data?.success){ alert(data?.error || "تعذّر الإجراء"); return; }
+  renderJudgePresence();
 }
 
 /* ---------------- حضور المرشدين ---------------- */

@@ -3267,9 +3267,9 @@ async function renderMentorshipSettings(){
     </div>
 
     <div class="card" style="margin-top:14px">
-      <h3 style="margin:0 0 6px">مسارات الميسّرين</h3>
+      <h3 style="margin:0 0 6px">الميسّرون: الصلاحيات والمسارات</h3>
       <p class="hint" style="margin:0 0 14px">
-        الميسّر المسنَد لمسار يرى فرق مساره فقط. ومن لم يُسنَد يرى الجميع.
+        الصلاحيات: حضور الفرق، تحضير المرشدين، تحضير المحكّمين — يرى الميسّر تبويبات صلاحياته فقط. المسار المسنَد يظهر له «مساري» في عرض الفرق.
       </p>
       <div id="fac-tracks"><p class="hint">جارٍ التحميل...</p></div>
     </div>
@@ -3295,10 +3295,13 @@ async function loadFacilitatorTracks(){
   const box = document.getElementById("fac-tracks");
   if(!box) return;
 
-  const [asg, tracks] = await Promise.all([
+  const [asg, tracks, permsRes] = await Promise.all([
     sb.from("facilitator_assignments").select("*"),
-    sb.from("tracks").select("id,name_ar").eq("is_active", true).order("display_order")
+    sb.from("tracks").select("id,name_ar").eq("is_active", true).order("display_order"),
+    sb.from("facilitator_permissions").select("user_id, perms")
   ]);
+  window._facPerms = {};
+  (permsRes.data || []).forEach(p => { window._facPerms[p.user_id] = p.perms || []; });
 
   if(asg.error){
     box.innerHTML = `<p class="hint">${esc(asg.error.message)}</p>`;
@@ -3314,15 +3317,19 @@ async function loadFacilitatorTracks(){
 
   box.innerHTML = `
     <table class="table"><thead><tr>
-      <th>الميسّر</th><th>البريد</th><th>المسارات</th><th></th>
+      <th>الميسّر</th><th>البريد</th><th>الصلاحيات</th><th>المسارات</th><th></th>
     </tr></thead><tbody>
     ${list.map(f => `<tr>
       <td><strong>${esc(f.الميسّر)}</strong></td>
       <td>${esc(f.البريد || "—")}</td>
+      <td style="font-size:12px">${facPermsBadges(window._facPerms[f.facilitator_id])}</td>
       <td>${f.عدد_المسارات
         ? esc(f.المسارات)
         : '<span class="badge badge-gray">كل المسارات</span>'}</td>
-      <td><button class="btn btn-outline btn-sm"
+      <td class="row-actions"><button class="btn btn-outline btn-sm"
+        onclick='openFacPermsModal(${jsArg(f.facilitator_id)}, ${jsArg(f.الميسّر)})'>
+        الصلاحيات</button>
+        <button class="btn btn-outline btn-sm"
         onclick='openFacTracksModal("${f.facilitator_id}", ${jsArg(f.الميسّر)})'>
         تحديد المسارات</button></td>
     </tr>`).join("")}
@@ -3498,6 +3505,25 @@ function printCommittees(){
   if(!w){ showToast("اسمح بالنوافذ المنبثقة للطباعة", true); return; }
   w.document.write(html);
   w.document.close();
+}
+
+function openFacPermsModal(userId, name){
+  openModal(`<h3>صلاحيات ${esc(name)}</h3>
+    <p class="hint" style="margin:0 0 14px">تُطبَّق فورًا وتُفرض في قاعدة البيانات — يرى الميسّر تبويبات صلاحياته فقط</p>
+    <div class="field">${facPermsCheckboxes(window._facPerms?.[userId] || [])}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" onclick='saveFacPerms(${jsArg(userId)})'>حفظ</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>`);
+}
+async function saveFacPerms(userId){
+  const perms = [...document.querySelectorAll(".fac-perm-cb:checked")].map(cb => cb.value);
+  const { data, error } = await sb.rpc("set_facilitator_permissions", { p_user_id: userId, p_perms: perms });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+  logActivity("تعديل صلاحيات ميسّر", "facilitator_permissions", userId, { perms });
+  closeModal();
+  showToast(perms.length ? "تم حفظ الصلاحيات" : "أُزيلت كل صلاحيات الميسّر");
+  loadFacilitatorTracks();
 }
 
 async function openFacTracksModal(userId, name){
@@ -5280,8 +5306,9 @@ async function renderJudgesManagement(){
     </div>`;
 
   const { data: judgeRoles } = await sb.from("user_roles")
-    .select("id, user_id, profiles!user_roles_user_id_fkey(full_name, email, specialization, current_position), roles!inner(key)")
+    .select("id, user_id, profiles!user_roles_user_id_fkey(full_name, email, specialization, current_position, judge_present_at), roles!inner(key)")
     .eq("roles.key", "judge");
+  const riyadhDay = d => new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"});
 
   const { data: rounds } = await sb.from("judging_rounds").select("id,name_ar").order("round_order");
   const { data: assignments } = await sb.from("judge_assignments").select("judge_user_id, round_id");
@@ -5291,7 +5318,7 @@ async function renderJudgesManagement(){
   if(!judgeRoles || !judgeRoles.length){ box.innerHTML = emptyIllustration("scale", "لا يوجد محكّمون بعد", "أضف أول محكّم بالزر أعلاه ليبدأ تقييم المشاريع"); return; }
 
   box.innerHTML = `<table><thead><tr>
-    <th>المحكّم</th><th>التخصص / المسمى الوظيفي</th><th>فرق معيّنة</th><th>درجات مسجَّلة</th><th></th>
+    <th>المحكّم</th><th>التخصص / المسمى الوظيفي</th><th>حضور اليوم</th><th>فرق معيّنة</th><th>درجات مسجَّلة</th><th></th>
     </tr></thead><tbody>
     ${judgeRoles.map(j => {
       const myAssignments = (assignments||[]).filter(a => a.judge_user_id === j.user_id);
@@ -5299,6 +5326,7 @@ async function renderJudgesManagement(){
       return `<tr>
         <td><strong>${esc(j.profiles?.full_name||"—")}</strong><br><span style="color:var(--muted);font-size:12px">${esc(j.profiles?.email||"")}</span></td>
         <td>${esc(j.profiles?.specialization||"—")}<br><span style="color:var(--muted);font-size:12px">${esc(j.profiles?.current_position||"")}</span></td>
+        <td>${j.profiles?.judge_present_at && riyadhDay(j.profiles.judge_present_at) === riyadhDay(Date.now()) ? '<span class="badge badge-green">حاضر</span>' : '<span class="badge badge-gray">—</span>'}</td>
         <td>${myAssignments.length}</td>
         <td>${myScoresCount}</td>
         <td class="row-actions">
@@ -7361,6 +7389,15 @@ async function rejectMentorApp(id){
    الاعتماد يمنح دور «ميسّر» فقط (تسجيل الحضور، حضور المرشدين،
    قائمة المشاركين بالاسم والفريق والمسار) ويربط المسارات المختارة
    ============================================================ */
+const FAC_PERM_LABELS = { teams: "حضور الفرق", mentors: "تحضير المرشدين", judges: "تحضير المحكّمين" };
+function facPermsCheckboxes(selected){
+  return Object.entries(FAC_PERM_LABELS).map(([k, label]) => `<label style="display:flex;align-items:center;justify-content:flex-start;gap:8px;font-size:13.5px;margin-bottom:8px">
+    <input type="checkbox" class="fac-perm-cb" style="width:auto;margin:0" value="${k}" ${selected.includes(k) ? "checked" : ""}> ${label}</label>`).join("");
+}
+function facPermsBadges(perms){
+  if(!perms || !perms.length) return '<span class="badge badge-red">بلا صلاحيات</span>';
+  return perms.map(k => `<span class="badge badge-gray" style="margin:1px">${FAC_PERM_LABELS[k] || esc(k)}</span>`).join("");
+}
 let facAppsCache = [];
 let facAppsTracks = [];
 async function renderFacilitatorApplications(){
@@ -7407,8 +7444,9 @@ function openApproveFacilitator(id){
   const a = facAppsCache.find(x => x.id === id);
   if(!a) return;
   openModal(`<h2>اعتماد ${esc(a.profiles?.full_name||"")} ميسّرًا</h2>
-    <p class="hint" style="margin:0 0 12px">تحديد المسارات اختياري (يظهر للميسّر «مساري» في عرض الفرق). يُمنح دور «ميسّر» فقط، ويصله إشعار داخل المنصة.</p>
-    <div class="field">
+    <p class="hint" style="margin:0 0 12px">يُمنح دور «ميسّر» فقط بالصلاحيات المختارة، ويصله إشعار داخل المنصة.</p>
+    <div class="field"><label style="font-weight:700">الصلاحيات</label>${facPermsCheckboxes(["teams"])}</div>
+    <div class="field"><label style="font-weight:700">المسارات (اختياري)</label>
       ${facAppsTracks.map(t => `<label style="display:flex;align-items:center;justify-content:flex-start;gap:8px;font-size:13.5px;margin-bottom:8px">
         <input type="checkbox" class="fac-track-cb" style="width:auto;margin:0" value="${esc(t.id)}"> ${esc(t.name_ar)}</label>`).join("")}
     </div>
@@ -7419,9 +7457,11 @@ function openApproveFacilitator(id){
 }
 async function approveFacilitatorApp(id){
   const trackIds = [...document.querySelectorAll(".fac-track-cb:checked")].map(cb => cb.value);
-  const { data, error } = await sb.rpc("approve_facilitator_application", { p_application_id: id, p_track_ids: trackIds });
+  const perms = [...document.querySelectorAll(".fac-perm-cb:checked")].map(cb => cb.value);
+  if(!perms.length){ showToast("اختر صلاحية واحدة على الأقل", true); return; }
+  const { data, error } = await sb.rpc("approve_facilitator_application", { p_application_id: id, p_track_ids: trackIds, p_permissions: perms });
   if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
-  logActivity("اعتماد طلب ميسّر", "facilitator_application", id, { tracks: trackIds.length });
+  logActivity("اعتماد طلب ميسّر", "facilitator_application", id, { tracks: trackIds.length, perms });
   closeModal();
   showToast("تم الاعتماد — صار عنده دور ميسّر الآن");
   renderFacilitatorApplications();

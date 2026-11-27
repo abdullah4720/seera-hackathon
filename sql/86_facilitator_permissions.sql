@@ -265,3 +265,5 @@ grant execute on function public.approve_facilitator_application(uuid, uuid[], t
 grant execute on function public.set_judge_presence(uuid, boolean) to authenticated;
 grant execute on function public.facilitator_judges() to authenticated;
 grant execute on function public.is_judge_present_today(uuid) to authenticated;
+
+alter function public.guard_judge_presence() set search_path = public;

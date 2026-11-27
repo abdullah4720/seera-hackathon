@@ -336,6 +336,7 @@
         <a data-page="users"><i data-lucide="shield-check"></i> المستخدمون والأدوار</a>
         <a data-page="mentorApps"><i data-lucide="user-plus"></i> طلبات الانضمام كمرشد <span id="badge-mentorApps" class="nav-badge" style="display:none"></span></a>
         <a data-page="judgeApps"><i data-lucide="user-plus"></i> طلبات الانضمام كمحكّم <span id="badge-judgeApps" class="nav-badge" style="display:none"></span></a>
+        <a data-page="facilitatorApps"><i data-lucide="user-plus"></i> طلبات الانضمام كميسّر <span id="badge-facilitatorApps" class="nav-badge" style="display:none"></span></a>
         <a data-page="systemCheck"><i data-lucide="stethoscope"></i> فحص النظام</a>
         <a data-page="finalReport"><i data-lucide="file-text"></i> التقرير النهائي</a>
         <a data-page="activity"><i data-lucide="history"></i> سجل النشاط</a>
@@ -584,9 +585,10 @@ function initNavSidebarExtras(){
   renderNavPinned();
 }
 async function refreshNavBadges(){
-  const [mentorApps, judgeApps] = await Promise.all([
+  const [mentorApps, judgeApps, facApps] = await Promise.all([
     sb.from("mentor_applications").select("id", {count:"exact", head:true}).eq("status","pending"),
     sb.from("judge_applications").select("id", {count:"exact", head:true}).eq("status","pending"),
+    sb.from("facilitator_applications").select("id", {count:"exact", head:true}).eq("status","pending"),
   ]);
   const setBadge = (id, count) => {
     const el = document.getElementById(id);
@@ -596,6 +598,7 @@ async function refreshNavBadges(){
   };
   setBadge("badge-mentorApps", mentorApps.count || 0);
   setBadge("badge-judgeApps", judgeApps.count || 0);
+  setBadge("badge-facilitatorApps", facApps.count || 0);
 }
 let lucideObserverStarted = false;
 function initLucideAutoRender(){
@@ -741,6 +744,7 @@ function navigateTo(page){
     users: renderUsers,
     mentorApps: renderMentorApplications,
     judgeApps: renderJudgeApplications,
+    facilitatorApps: renderFacilitatorApplications,
     systemCheck: renderSystemCheck,
     finalReport: renderFinalReportPage,
     activity: renderActivityLog,
@@ -1033,12 +1037,13 @@ function renderCountdownChip(hackathonStart){
 
 async function renderAttentionZone(scheduleMap){
   const box = document.getElementById("attention-zone");
-  const [mentorApps, judgeApps, mentors, teams, subTeamIds] = await Promise.all([
+  const [mentorApps, judgeApps, mentors, teams, subTeamIds, facApps] = await Promise.all([
     sb.from("mentor_applications").select("id", {count:"exact", head:true}).eq("status","pending"),
     sb.from("judge_applications").select("id", {count:"exact", head:true}).eq("status","pending"),
     sb.from("user_roles").select("user_id, roles!inner(key)").eq("roles.key","mentor"),
     sb.from("teams").select("id").eq("status","confirmed"),
     sb.from("submissions").select("team_id"),
+    sb.from("facilitator_applications").select("id", {count:"exact", head:true}).eq("status","pending"),
   ]);
 
   const { data: slots } = await sb.from("mentor_slots").select("mentor_user_id");
@@ -1052,6 +1057,7 @@ async function renderAttentionZone(scheduleMap){
   const items = [];
   if((mentorApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كمرشد بانتظار المراجعة", count:mentorApps.count, page:"mentorApps" });
   if((judgeApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كمحكّم بانتظار المراجعة", count:judgeApps.count, page:"judgeApps" });
+  if((facApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كميسّر بانتظار المراجعة", count:facApps.count, page:"facilitatorApps" });
   if(belowMinMentors > 0) items.push({ color:"var(--gold)", text:`مرشدون لم يضيفوا ${MIN_MENTOR_SLOTS} مواعيد على الأقل`, count:belowMinMentors, page:"mentorship" });
   if(missingCount > 0) items.push({ color:"var(--navy)", text:"فرق مؤكدة لم تقدّم مشاريعها بعد", count:missingCount, page:"projects" });
 
@@ -7347,6 +7353,91 @@ async function rejectMentorApp(id){
   logActivity("رفض طلب مرشد", "mentor_application", id, {reason: reason.trim()});
   showToast("تم رفض الطلب");
   renderMentorApplications();
+  refreshNavBadges();
+}
+
+/* ============================================================
+   طلبات الانضمام كميسّر
+   الاعتماد يمنح دور «ميسّر» فقط (تسجيل الحضور، حضور المرشدين،
+   قائمة المشاركين بالاسم والفريق والمسار) ويربط المسارات المختارة
+   ============================================================ */
+let facAppsCache = [];
+let facAppsTracks = [];
+async function renderFacilitatorApplications(){
+  const main = document.getElementById("main-content");
+  main.innerHTML = `<div class="page-header"><div><h1>طلبات الانضمام كميسّر</h1><p>الاعتماد يمنح صلاحيات الميسّر فقط: تسجيل الحضور ومتابعة الفرق بمساراته — رابط التقديم: <code>facilitator-apply.html</code></p></div></div>
+    <div class="card"><div id="fac-apps-table">${skeletonRows(4)}</div></div>`;
+
+  const [{ data, error }, { data: tracks }] = await Promise.all([
+    sb.from("facilitator_applications")
+      .select("*, profiles!facilitator_applications_user_id_fkey(full_name, email, phone, organization)")
+      .order("created_at", {ascending:false}),
+    sb.from("tracks").select("id,name_ar").eq("is_active", true).order("display_order"),
+  ]);
+  facAppsTracks = tracks || [];
+  const box = document.getElementById("fac-apps-table");
+  if(error){ box.innerHTML = `<div class="empty-state">خطأ: ${esc(error.message)}</div>`; return; }
+  facAppsCache = data || [];
+  if(!facAppsCache.length){ box.innerHTML = emptyIllustration("user-plus", "لا توجد طلبات بعد", "شارك رابط facilitator-apply.html مع المتطوعين الراغبين بالتيسير"); return; }
+
+  const trackName = id => (facAppsTracks.find(t => t.id === id)?.name_ar) || "—";
+  const statusBadge = {
+    pending: '<span class="badge badge-gray">قيد المراجعة</span>',
+    approved: '<span class="badge badge-green">مُعتمَد</span>',
+    rejected: '<span class="badge badge-red">مرفوض</span>',
+  };
+  box.innerHTML = `<table><thead><tr>
+    <th>المتقدم</th><th>الجهة / المسمى</th><th>المسار المفضّل</th><th>أيام التواجد</th><th>الخبرة</th><th>الحالة</th><th></th>
+    </tr></thead><tbody>
+    ${facAppsCache.map(a => `<tr>
+      <td><strong>${esc(a.profiles?.full_name||"—")}</strong><br><span style="color:var(--muted);font-size:12px">${esc(a.profiles?.email||"")}${a.profiles?.phone ? " · " + esc(a.profiles.phone) : ""}</span></td>
+      <td style="font-size:12.5px">${esc(a.organization||a.profiles?.organization||"—")}${a.current_position ? `<br><span style="color:var(--muted)">${esc(a.current_position)}</span>` : ""}</td>
+      <td style="font-size:12.5px">${esc(trackName(a.preferred_track_id))}</td>
+      <td style="font-size:12px">${(a.availability||[]).map(d => `<span class="badge badge-gray" style="margin:1px">${esc(d)}</span>`).join("")}</td>
+      <td style="max-width:200px;font-size:12px;color:var(--muted)">${esc((a.experience||"").substring(0,120))}</td>
+      <td>${statusBadge[a.status]||esc(a.status)}${a.status==="rejected" && a.rejection_reason ? `<br><span style="font-size:11px;color:var(--muted)">${esc(a.rejection_reason)}</span>` : ""}</td>
+      <td class="row-actions">
+        ${a.status === "pending" ? `
+          <button class="btn btn-primary btn-sm" onclick='openApproveFacilitator(${jsArg(a.id)})'>اعتماد</button>
+          <button class="btn btn-danger btn-sm" onclick='rejectFacilitatorApp(${jsArg(a.id)})'>رفض</button>
+        ` : ""}
+      </td>
+    </tr>`).join("")}
+    </tbody></table>`;
+}
+function openApproveFacilitator(id){
+  const a = facAppsCache.find(x => x.id === id);
+  if(!a) return;
+  openModal(`<h2>اعتماد ${esc(a.profiles?.full_name||"")} ميسّرًا</h2>
+    <p class="hint" style="margin:0 0 12px">حدّد المسارات التي يتابعها. يُمنح دور «ميسّر» فقط، ويصله إشعار داخل المنصة.</p>
+    <div class="field">
+      ${facAppsTracks.map(t => `<label style="display:flex;align-items:center;justify-content:flex-start;gap:8px;font-size:13.5px;margin-bottom:8px">
+        <input type="checkbox" class="fac-track-cb" style="width:auto;margin:0" value="${esc(t.id)}" ${t.id === a.preferred_track_id ? "checked" : ""}> ${esc(t.name_ar)}</label>`).join("")}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick='approveFacilitatorApp(${jsArg(id)})'>اعتماد</button>
+    </div>`);
+}
+async function approveFacilitatorApp(id){
+  const trackIds = [...document.querySelectorAll(".fac-track-cb:checked")].map(cb => cb.value);
+  const { data, error } = await sb.rpc("approve_facilitator_application", { p_application_id: id, p_track_ids: trackIds });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+  logActivity("اعتماد طلب ميسّر", "facilitator_application", id, { tracks: trackIds.length });
+  closeModal();
+  showToast("تم الاعتماد — صار عنده دور ميسّر الآن");
+  renderFacilitatorApplications();
+  refreshNavBadges();
+}
+async function rejectFacilitatorApp(id){
+  const reason = prompt("سبب الرفض (يصل للمتقدم في إشعاره):");
+  if(reason === null) return;
+  if(!reason.trim()){ showToast("السبب مطلوب", true); return; }
+  const { data, error } = await sb.rpc("reject_facilitator_application", { p_application_id: id, p_reason: reason.trim() });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+  logActivity("رفض طلب ميسّر", "facilitator_application", id, { reason: reason.trim() });
+  showToast("تم رفض الطلب");
+  renderFacilitatorApplications();
   refreshNavBadges();
 }
 

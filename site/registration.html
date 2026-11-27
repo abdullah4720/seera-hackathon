@@ -1896,8 +1896,12 @@ async function renderMentorshipTab(membership){
   const { data: presenceRequired } = await sb.rpc("mentor_presence_required");
   const riyadhDay = (d) => new Date(d).toLocaleDateString("en-CA", {timeZone:"Asia/Riyadh"});
   const presentToday = (p) => !!(p && p.mentor_present && p.mentor_present_at && riyadhDay(p.mentor_present_at) === riyadhDay(Date.now()));
+  // المواعيد خارج أيام الإرشاد المحددة في جدول البرنامج لا تُعرض (الخادم يرفض حجزها أيضًا)
+  const { data: mDays } = await sb.from("program_days").select("starts_at, ends_at").eq("phase", "mentorship");
+  const inMentorshipDays = (s) => !(mDays && mDays.length) ||
+    mDays.some(d => new Date(s.start_time) >= new Date(d.starts_at) && new Date(s.end_time) <= new Date(d.ends_at));
   const slots = (rawSlots||[]).filter(s =>
-    s.profiles?.is_active !== false && (presenceRequired === false || presentToday(s.profiles)));
+    s.profiles?.is_active !== false && (presenceRequired === false || presentToday(s.profiles)) && inMentorshipDays(s));
 
   // ترشيح: نطابق تخصص المرشد مع مسار الفريق لإبراز الأنسب
   // (القيم مطابقة تمامًا لقائمة التخصصات الفعلية بنموذج التقديم كمرشد)

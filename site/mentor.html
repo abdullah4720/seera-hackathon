@@ -969,7 +969,7 @@ async function confirmBooking(bookingId){
   renderSlots();
 }
 async function cancelBookingByMentor(bookingId){
-  if(!confirm("هل أنت متأكد من إلغاء هذا الحجز؟")) return;
+  if(!confirm("هل أنت متأكد من إلغاء هذا الحجز؟\n\nسيُبلَّغ الفريق بالإلغاء، ويُغلق هذا الموعد فلا يظهر للفرق مرة أخرى.")) return;
   const { error } = await sb.from("mentor_bookings").update({ status: "cancelled" }).eq("id", bookingId);
   if(error){
     // رسالة القاعدة الخام مربكة — نوضّح المقصود

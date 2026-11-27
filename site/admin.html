@@ -7380,19 +7380,17 @@ async function renderFacilitatorApplications(){
   facAppsCache = data || [];
   if(!facAppsCache.length){ box.innerHTML = emptyIllustration("user-plus", "لا توجد طلبات بعد", "شارك رابط facilitator-apply.html مع المتطوعين الراغبين بالتيسير"); return; }
 
-  const trackName = id => (facAppsTracks.find(t => t.id === id)?.name_ar) || "—";
   const statusBadge = {
     pending: '<span class="badge badge-gray">قيد المراجعة</span>',
     approved: '<span class="badge badge-green">مُعتمَد</span>',
     rejected: '<span class="badge badge-red">مرفوض</span>',
   };
   box.innerHTML = `<table><thead><tr>
-    <th>المتقدم</th><th>الجهة / المسمى</th><th>المسار المفضّل</th><th>أيام التواجد</th><th>الخبرة</th><th>الحالة</th><th></th>
+    <th>المتقدم</th><th>الجهة / المسمى</th><th>أيام التواجد</th><th>الخبرة</th><th>الحالة</th><th></th>
     </tr></thead><tbody>
     ${facAppsCache.map(a => `<tr>
       <td><strong>${esc(a.profiles?.full_name||"—")}</strong><br><span style="color:var(--muted);font-size:12px">${esc(a.profiles?.email||"")}${a.profiles?.phone ? " · " + esc(a.profiles.phone) : ""}</span></td>
       <td style="font-size:12.5px">${esc(a.organization||a.profiles?.organization||"—")}${a.current_position ? `<br><span style="color:var(--muted)">${esc(a.current_position)}</span>` : ""}</td>
-      <td style="font-size:12.5px">${esc(trackName(a.preferred_track_id))}</td>
       <td style="font-size:12px">${(a.availability||[]).map(d => `<span class="badge badge-gray" style="margin:1px">${esc(d)}</span>`).join("")}</td>
       <td style="max-width:200px;font-size:12px;color:var(--muted)">${esc((a.experience||"").substring(0,120))}</td>
       <td>${statusBadge[a.status]||esc(a.status)}${a.status==="rejected" && a.rejection_reason ? `<br><span style="font-size:11px;color:var(--muted)">${esc(a.rejection_reason)}</span>` : ""}</td>
@@ -7409,10 +7407,10 @@ function openApproveFacilitator(id){
   const a = facAppsCache.find(x => x.id === id);
   if(!a) return;
   openModal(`<h2>اعتماد ${esc(a.profiles?.full_name||"")} ميسّرًا</h2>
-    <p class="hint" style="margin:0 0 12px">حدّد المسارات التي يتابعها. يُمنح دور «ميسّر» فقط، ويصله إشعار داخل المنصة.</p>
+    <p class="hint" style="margin:0 0 12px">تحديد المسارات اختياري (يظهر للميسّر «مساري» في عرض الفرق). يُمنح دور «ميسّر» فقط، ويصله إشعار داخل المنصة.</p>
     <div class="field">
       ${facAppsTracks.map(t => `<label style="display:flex;align-items:center;justify-content:flex-start;gap:8px;font-size:13.5px;margin-bottom:8px">
-        <input type="checkbox" class="fac-track-cb" style="width:auto;margin:0" value="${esc(t.id)}" ${t.id === a.preferred_track_id ? "checked" : ""}> ${esc(t.name_ar)}</label>`).join("")}
+        <input type="checkbox" class="fac-track-cb" style="width:auto;margin:0" value="${esc(t.id)}"> ${esc(t.name_ar)}</label>`).join("")}
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>

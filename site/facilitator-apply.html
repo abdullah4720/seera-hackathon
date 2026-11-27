@@ -57,7 +57,7 @@
       <strong>بعد اعتماد طلبك ستتمكّن من:</strong><br>
       • تسجيل حضور المشاركين يدويًا أو بمسح رمز QR<br>
       • تسجيل حضور المرشدين لتظهر مواعيدهم للفرق<br>
-      • متابعة الفرق في مسارك بالاسم والفريق والمسار
+      • متابعة الفرق المشاركة بالاسم والفريق والمسار
     </div>
     <div class="switcher">
       <button id="tab-new" onclick="switchTab('new')">حساب جديد</button>
@@ -78,15 +78,12 @@
 
     <div class="field"><label>الجهة</label><input id="f-org" placeholder="مثال: جامعة القصيم"></div>
     <div class="field"><label>المسمى الوظيفي أو الدراسي</label><input id="f-position" placeholder="مثال: طالب علوم الحاسب، موظف..."></div>
-    <div class="field"><label>المسار المفضّل</label>
-      <select id="f-track"><option value="">بدون تفضيل</option></select>
-    </div>
-    <div class="field"><label>أيام التواجد</label>
+    <div class="field"><label>أيام التواجد الحضوري</label>
       <div class="days">
-        <label><input type="checkbox" class="f-day" value="الخميس 3 ديسمبر"> الخميس 3 ديسمبر</label>
         <label><input type="checkbox" class="f-day" value="الجمعة 4 ديسمبر"> الجمعة 4 ديسمبر</label>
         <label><input type="checkbox" class="f-day" value="السبت 5 ديسمبر"> السبت 5 ديسمبر</label>
       </div>
+      <p class="hint" style="margin:6px 0 0">يوم الخميس 3 ديسمبر عن بُعد، فلا يحتاج تواجدًا حضوريًا</p>
     </div>
     <div class="field"><label>خبرتك في التنظيم أو التطوع (اختياري)</label><textarea id="f-exp" rows="3" placeholder="فعاليات أو برامج شاركت في تنظيمها..."></textarea></div>
 
@@ -113,16 +110,9 @@ function showAlert(msg, type="error"){
   box.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-(async () => {
-  const { data } = await sb.from("tracks").select("id,name_ar").eq("is_active", true).order("display_order");
-  const sel = document.getElementById("f-track");
-  (data||[]).forEach(t => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.name_ar; sel.appendChild(o); });
-})();
-
 async function handleApply(){
   const organization = document.getElementById("f-org").value.trim();
   const position = document.getElementById("f-position").value.trim();
-  const trackId = document.getElementById("f-track").value || null;
   const days = [...document.querySelectorAll(".f-day:checked")].map(c => c.value);
   const experience = document.getElementById("f-exp").value.trim();
   if(!organization){ showAlert("الجهة مطلوبة"); return; }
@@ -150,7 +140,7 @@ async function handleApply(){
     }
 
     const { data: res, error: rpcErr } = await sb.rpc("submit_facilitator_application", {
-      p_organization: organization, p_position: position, p_track_id: trackId,
+      p_organization: organization, p_position: position, p_track_id: null,
       p_availability: days, p_experience: experience
     });
     if(rpcErr || !res?.success){ showAlert(res?.error || "تعذّر إرسال الطلب، حاول مرة أخرى"); return; }

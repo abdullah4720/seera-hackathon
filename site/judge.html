@@ -109,7 +109,7 @@
     font-family:inherit;font-size:13.5px;resize:vertical}
 
   .field label{display:block; font-size:13px; margin-bottom:6px; font-weight:500;}
-  .field input, .field textarea{width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:9px; font-family:inherit; font-size:14px;}
+  .field input, .field textarea, .field select{width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:9px; font-family:inherit; font-size:14px;}
   .btn{border:none; border-radius:9px; padding:12px 20px; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;}
   .btn-primary{background:var(--teal); color:#fff; width:100%;}
   .btn-primary:hover{background:#188878;}
@@ -264,6 +264,33 @@
      فكان الصف يظهر بلا تنسيق ويتكدّس عناصره */
   .member-row{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--border);}
   .member-row:last-child{border-bottom:none;}
+  /* ===== التحكيم بنمط حاضنة ابتكار 5 ===== */
+  .badge-gold{background:#fbf3e2; color:#92600a;}
+  .btn-outline{background:none; border:1px solid var(--border); color:var(--ink);}
+  .btn-outline:hover{border-color:var(--gold);}
+  .hint{font-size:12.5px; color:var(--muted);}
+  .jd-progress .jd-bar{height:8px; background:var(--border-light); border-radius:99px; overflow:hidden; margin-top:12px;}
+  .jd-progress .jd-bar span{display:block; height:100%; background:linear-gradient(90deg,var(--gold),var(--teal)); border-radius:99px; transition:width .4s;}
+  .jd-row{display:flex; align-items:center; gap:12px; padding:14px 18px; margin-bottom:10px; cursor:pointer; transition:border-color .15s, transform .15s;}
+  .jd-row:hover{border-color:var(--gold); transform:translateY(-1px);}
+  .jd-order{width:30px; height:30px; border-radius:9px; background:var(--navy); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0;}
+  .jd-code{font-size:11px; color:var(--gold); background:#fbf3e2; padding:2px 8px; border-radius:6px; margin-inline-start:4px;}
+  .jd-score{font-weight:800; color:var(--teal); font-size:14px;}
+  .btn-back{background:none; border:none; color:var(--muted); font-family:inherit; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-bottom:12px; padding:4px 0;}
+  .btn-back:hover{color:var(--ink);}
+  .jd-members{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
+  .jd-chip{font-size:12.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--border);}
+  .jd-file{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; color:var(--ink); text-decoration:none;}
+  .jd-file:hover{border-color:var(--gold);}
+  .jd-crit{padding:14px 0; border-bottom:1px solid var(--border);}
+  .jd-crit-name{font-size:14px; font-weight:700;}
+  .jd-weight{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .jd-info{width:24px; height:24px; border-radius:50%; border:1px solid var(--border); background:none; color:var(--muted); cursor:pointer; font-size:12px; line-height:1;}
+  .jd-crit-desc{display:none; font-size:12.5px; color:var(--muted); line-height:1.8; white-space:pre-line; background:var(--border-light); border-radius:9px; padding:10px 12px; margin-top:8px;}
+  .jd-crit-desc.open{display:block;}
+  .jd-btns{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  #jd-search{padding:9px 14px; border:1px solid var(--border); border-radius:20px; font-family:inherit; font-size:13px; background:var(--card); color:var(--ink);}
+  #jd-search:focus{outline:none; border-color:var(--gold);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -376,109 +403,6 @@ document.getElementById("modal-overlay").addEventListener("click", (e)=>{
 let currentUser = null;
 let activeRound = null;
 let criteriaList = [];
-
-/* ---------------- كل المشاريع ---------------- */
-// اطّلاع عام على مشاريع البرنامج. السياسة في القاعدة تسمح
-// للمرشد والمحكّم بقراءتها، والعرض هنا بلا درجات ولا ملاحظات.
-
-let allProjectsCache = [];
-
-async function renderAllProjects(){
-  const box = document.getElementById("main-content");
-  box.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
-
-  const { data, error } = await sb.from("submissions")
-    .select("id, title, description, file_url, version, submitted_at, team_id, teams(team_name, team_code, tracks(name_ar))")
-    .order("submitted_at", { ascending: false });
-
-  if(error){
-    box.innerHTML = `<div class="card"><p class="hint">تعذّر التحميل: ${esc(error.message)}</p></div>`;
-    return;
-  }
-
-  // نسخة واحدة لكل فريق: الأحدث
-  const latest = new Map();
-  (data || []).forEach(p => {
-    const cur = latest.get(p.team_id);
-    if(!cur || (p.version || 0) > (cur.version || 0)) latest.set(p.team_id, p);
-  });
-  allProjectsCache = [...latest.values()];
-
-  const tracks = [...new Set(allProjectsCache
-    .map(p => p.teams?.tracks?.name_ar).filter(Boolean))].sort();
-
-  box.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      <div class="ap-bar">
-        <div class="field" style="margin:0;flex:1;min-width:190px">
-          <label>بحث بالمشروع أو الفريق أو رقمه</label>
-          <input id="ap-search" placeholder="اكتب للبحث..." oninput="filterAllProjects()">
-        </div>
-        <div class="field" style="margin:0;min-width:170px">
-          <label>المسار</label>
-          <select id="ap-track" onchange="filterAllProjects()">
-            <option value="">كل المسارات</option>
-            ${tracks.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-      <p class="hint" id="ap-count" style="margin:12px 0 0"></p>
-    </div>
-    <div id="ap-list"></div>`;
-
-  filterAllProjects();
-}
-
-function filterAllProjects(){
-  const term  = (document.getElementById("ap-search")?.value || "").trim().toLowerCase();
-  const track = document.getElementById("ap-track")?.value || "";
-
-  const shown = allProjectsCache.filter(p => {
-    if(track && p.teams?.tracks?.name_ar !== track) return false;
-    if(!term) return true;
-    return (p.title || "").toLowerCase().includes(term)
-        || (p.teams?.team_name || "").toLowerCase().includes(term)
-        || (p.teams?.team_code || "").toLowerCase().includes(term);
-  });
-
-  const cnt = document.getElementById("ap-count");
-  if(cnt) cnt.textContent = shown.length === allProjectsCache.length
-    ? `${allProjectsCache.length} مشروعًا`
-    : `${shown.length} من ${allProjectsCache.length}`;
-
-  const list = document.getElementById("ap-list");
-  if(!shown.length){
-    list.innerHTML = `<div class="card"><div class="empty-state">لا مشاريع مطابقة</div></div>`;
-    return;
-  }
-
-  list.innerHTML = shown.map(p => `
-    <div class="card ap-card">
-      <div class="ap-head">
-        <div style="flex:1;min-width:0">
-          <div class="ap-title">${esc(p.title || "بلا عنوان")}</div>
-          <div class="ap-meta">
-            ${p.teams?.team_code ? `<code>${esc(p.teams.team_code)}</code>` : ""}
-            ${esc(p.teams?.team_name || "—")}
-            ${p.teams?.tracks?.name_ar ? ` · ${esc(p.teams.tracks.name_ar)}` : ""}
-          </div>
-        </div>
-      </div>
-      ${p.description ? `
-        <details class="ap-fold">
-          <summary><span class="ap-row">
-            <i data-lucide="file-text"></i>
-            <span>وصف المشروع</span>
-            <span class="ap-more">عرض</span>
-          </span></summary>
-          <div class="ap-body">${esc(p.description)}</div>
-        </details>` : ""}
-      ${p.file_url ? `<a class="ap-file" href="${esc(p.file_url)}" target="_blank" rel="noopener">
-        <i data-lucide="paperclip"></i> فتح ملف المشروع</a>` : ""}
-    </div>`).join("");
-
-  if(window.lucide) lucide.createIcons();
-}
 
 function esc(str){
   if(str === null || str === undefined) return "";
@@ -803,8 +727,57 @@ async function issueJudgeCertificate(certKey){
 /* ---------------- الشهادة: التصميم الموحّد في cert.js ---------------- */
 async function openCertOverlay(data){ SeeraCert.open(Object.assign({ roleKey: "judge" }, data)); }
 
+/* ============================================================
+   التحكيم — على نمط «حاضنة ابتكار 5»
+   • القائمة: تقدّمي + بحث + فلتر الحالة، وبطاقة لكل مشروع تفتح صفحته
+   • صفحة المشروع: الوصف والملف والتسليمات والأعضاء (بلا تواصل)
+   • التقييم: أزرار 1–5 لكل معيار مع الوزن والوصف، ملاحظة عامة،
+     «حفظ كمسودة» (لا يدخل النتائج) و«إرسال التقييم النهائي» بعد ملخص
+   • البيانات من judge_projects/save_evaluation (sql/89) — سياسة teams
+     لا تسمح للمحكّم بقراءة الفرق مباشرة
+   ============================================================ */
+let jdProjects = [];          // كل مشاريع الجولة (المُسندة لي أولًا)
+let jdEvals = {};             // team_id → تقييمي (مسودة/نهائي)
+let jdFilter = "todo";        // todo | draft | done | all
+let jdView = "mine";          // mine | all
+let jdCurrent = null;         // المشروع المفتوح
+let jdPicked = {};            // criteria_id → درجة مختارة في الصفحة المفتوحة
+
+const RANKS = { 1: "ضعيف", 2: "مقبول", 3: "جيد", 4: "جيد جدًا", 5: "ممتاز" };
+
+function critMax(c){ return Number(c.max_score) > 0 ? Number(c.max_score) : 5; }
+function weightPct(c){
+  const sum = criteriaList.reduce((a, x) => a + Number(x.weight || 0), 0) || 1;
+  return Math.round(Number(c.weight || 0) / sum * 100);
+}
+/* المجموع الموزون من 100 لدرجات مختارة (يكفي جزء منها للعرض المؤقت) */
+function weightedTotal(scores){
+  let num = 0, den = 0, n = 0;
+  criteriaList.forEach(c => {
+    const v = Number(scores?.[c.id]);
+    if(!v) return;
+    num += v / critMax(c) * Number(c.weight || 0);
+    den += Number(c.weight || 0);
+    n++;
+  });
+  return { total: den ? Math.round(num / den * 1000) / 10 : null, answered: n };
+}
+function evalStatus(p){
+  const e = jdEvals[p.team_id];
+  if(e?.is_submitted) return "done";
+  if(e && Object.keys(e.draft_scores || {}).length) return "draft";
+  return "todo";
+}
+function statusBadge(st){
+  return st === "done"  ? '<span class="badge badge-green">✓ أُرسل نهائيًا</span>'
+       : st === "draft" ? '<span class="badge badge-gold">مسودة محفوظة</span>'
+       :                  '<span class="badge badge-gray">لم يبدأ</span>';
+}
+
 async function loadAssignments(){
+  jdView = "mine";
   const main = document.getElementById("main-content");
+  main.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
 
   const { data: round } = await sb.from("judging_rounds").select("*").eq("is_active", true).limit(1).maybeSingle();
   if(!round){
@@ -813,347 +786,337 @@ async function loadAssignments(){
     return;
   }
   activeRound = round;
-  document.getElementById("round-name").textContent = round.name_ar;
+  document.getElementById("round-name").textContent = round.name_ar + (round.is_locked ? " · مقفلة" : "");
 
-  const { data: criteria } = await sb.from("judging_criteria").select("*").eq("round_id", round.id).order("display_order");
-  criteriaList = criteria || [];
+  const [critRes, projRes, evalRes, comRes] = await Promise.all([
+    sb.from("judging_criteria").select("*").eq("round_id", round.id).order("display_order"),
+    sb.rpc("judge_projects", { p_round_id: round.id }),
+    sb.from("judge_evaluations").select("*").eq("judge_user_id", currentUser.id).eq("round_id", round.id),
+    sb.from("committee_members").select("committee_id").eq("judge_user_id", currentUser.id).limit(1).maybeSingle(),
+  ]);
+  criteriaList = critRes.data || [];
+  if(projRes.error){ main.innerHTML = `<div class="card"><div class="empty-state">تعذّر التحميل: ${esc(projRes.error.message)}</div></div>`; return; }
+  jdProjects = projRes.data || [];
+  jdEvals = {};
+  (evalRes.data || []).forEach(e => { jdEvals[e.team_id] = e; });
+  window._comCard = await buildCommitteeCard(comRes.data?.committee_id);
 
-  const { data: assignments, error } = await sb.from("judge_assignments")
-    .select("id, has_conflict, conflict_reason, team_id, committee_id, teams(team_name, team_code, tracks(name_ar))")
-    .eq("judge_user_id", currentUser.id)
-    .eq("round_id", round.id);
-
-  if(error){ main.innerHTML = `<div class="card"><div class="empty-state">خطأ: ${esc(error.message)}</div></div>`; return; }
-  if(!assignments.length){ main.innerHTML = `<div class="card"><div class="empty-state">لم يتم تعيين أي فرق لك بهذه الجولة بعد</div></div>`; return; }
-
-  // لجنتي من عضويتي مباشرة، لا من أول إسناد — فإسناد قديم
-  // بلا committee_id كان يُخفي البطاقة كلها.
-  const { data: myCom } = await sb.from("committee_members")
-    .select("committee_id").eq("judge_user_id", currentUser.id).maybeSingle();
-  window._comCard = await buildCommitteeCard(
-    myCom?.committee_id || assignments.find(a => a.committee_id)?.committee_id);
-
-  const { data: myScores } = await sb.from("scores").select("*").eq("judge_user_id", currentUser.id).eq("round_id", round.id);
-
-
-  // الفرق المعتمدة إداريًا — درجاتها مقفلة بالقاعدة (ملف 69).
-  // نقرأها هنا لنعرض السبب بوضوح بدل رسالة خطأ عند محاولة الحفظ.
-  const { data: approvals } = await sb.from("judging_approvals")
-    .select("team_id, status").eq("round_id", round.id);
-  const approvedTeams = new Set((approvals||[]).filter(a => a.status === "approved").map(a => a.team_id));
-
-  // استعلامان مجمّعان بدل استعلامين لكل فريق (كان 2×N ويبطئ الصفحة
-  // بشكل ملحوظ لما تكثر المشاريع)
-  const teamIds = assignments.map(a => a.team_id);
-  let subsByTeam = {}, membersByTeam = {};
-
-  if(teamIds.length){
-    const [subsRes, memRes] = await Promise.all([
-      sb.from("submissions").select("*").in("team_id", teamIds).order("version", {ascending:false}),
-      sb.from("team_members").select("team_id, is_leader, profiles(full_name, email, phone)").in("team_id", teamIds)
-    ]);
-    // أول صف لكل فريق = أعلى إصدار (مرتّبة تنازليًا)
-    (subsRes.data||[]).forEach(s => { if(!subsByTeam[s.team_id]) subsByTeam[s.team_id] = s; });
-    (memRes.data||[]).forEach(m => { (membersByTeam[m.team_id] = membersByTeam[m.team_id] || []).push(m); });
-  }
-
-  // نجهّز بيانات كل فريق مرة واحدة، ثم نعيد الرسم عند تغيير الفلتر بلا استعلام جديد
-  // ⚠️ لا نُخفي شيئًا: أعضاء اللجنة الواحدة يقيّمون المشروع
-  // نفسه، فإخفاؤه عمّن قيّمه زميله يعطّل التحكيم.
-  judgeCards = assignments.map(a => {
-    const teamScores = (myScores||[]).filter(s => s.team_id === a.team_id);
-    // مكتمل = كل المعايير · جزئي = بعضها. كان الشرط يساوي
-    // العدد بالضبط، فتقييم ناقص أو تغيّر عدد المعايير يجعله صفرًا.
-    const scoredCount = teamScores.length;
-    const alreadyScored = criteriaList.length > 0 && scoredCount >= criteriaList.length;
-    const partiallyScored = scoredCount > 0 && !alreadyScored;
-    const isApproved = approvedTeams.has(a.team_id);
-    return {
-      a,
-      teamScores,
-      alreadyScored,
-      partiallyScored,
-      scoredCount,
-      isApproved,
-      isLocked: round.results_published || isApproved,
-      submission: subsByTeam[a.team_id] || null,
-      teamMembers: membersByTeam[a.team_id] || []
-    };
-  });
-
-  renderJudgeCards();
-}
-
-/* ---------------- الفلترة والعرض ---------------- */
-let judgeCards = [];
-let judgeFilter = "pending";   // pending | done | all
-
-function setJudgeFilter(f){
-  judgeFilter = f;
-  renderJudgeCards();
-}
-
-function renderJudgeCards(){
-  const main = document.getElementById("main-content");
-  const scorable = judgeCards;
-  const pendingCount = scorable.filter(c => !c.alreadyScored).length;
-  const doneCount    = scorable.filter(c => c.alreadyScored).length;
-  const partialCount = scorable.filter(c => c.partiallyScored).length;
-
-  // لو خلص كل شي، ما فيه فايدة من إبقاء فلتر "بانتظار التقييم" فاضي
-  if(judgeFilter === "pending" && pendingCount === 0 && doneCount > 0) judgeFilter = "all";
-
-  const visible = judgeCards.filter(c => {
-
-    if(judgeFilter === "pending") return !c.alreadyScored;
-    if(judgeFilter === "done")    return c.alreadyScored;
-    return true;
-  });
-
-
-  const bar = `<div class="filter-bar">
-      <button class="filter-chip ${judgeFilter==='pending'?'active':''}" onclick="setJudgeFilter('pending')">بانتظار التقييم (${pendingCount})</button>
-      <button class="filter-chip ${judgeFilter==='done'?'active':''}" onclick="setJudgeFilter('done')">تم التقييم (${doneCount})</button>
-      <button class="filter-chip ${judgeFilter==='all'?'active':''}" onclick="setJudgeFilter('all')">الكل (${judgeCards.length})</button>
-    </div>`;
-
-  if(!visible.length){
-    main.innerHTML = (window._comCard || "") + buildCriteriaGuide() + bar + `<div class="card"><div class="empty-state">${
-      judgeFilter === "pending"
-        ? "أنهيت تقييم كل الفرق المسندة لك. شكرًا لك."
-        : "لا توجد فرق بهذا التصنيف"
-    }</div></div>`;
-    if(window.lucide) lucide.createIcons();
+  if(!jdProjects.some(p => p.is_assigned)){
+    main.innerHTML = (window._comCard || "") + `<div class="card"><div class="empty-state">لم يتم إسناد أي مشروع لك بهذه الجولة بعد</div></div>`;
     return;
   }
-
-  // نفتح البطاقة تلقائيًا لو كانت وحيدة فقط — غير ذلك تبقى مطويّة
-  const autoOpen = visible.length === 1;
-
-  main.innerHTML = (window._comCard || "") + buildCriteriaGuide() + bar + visible.map(c => judgeCardHtml(c, autoOpen)).join("");
-  if(window.lucide) lucide.createIcons();
-  visible.forEach(c => { updateLiveTotal(c.a.team_id); });
+  renderJudgeList();
 }
 
-function judgeCardHtml(c, autoOpen){
-  const { a, teamScores, alreadyScored, partiallyScored, scoredCount, isApproved, isLocked, submission, teamMembers } = c;
-  const teamName  = a.teams?.team_name || "";
-  const teamCode  = a.teams?.team_code || "";
-  const trackName = a.teams?.tracks?.name_ar || "";
+function setJudgeFilter(f){ jdFilter = f; renderJudgeList(); }
 
-  const header = `<summary class="card" style="margin:0">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:14.5px;font-weight:700">${esc(teamName)}
-          <code style="font-size:11px;color:var(--gold);background:#fbf3e2;padding:2px 8px;border-radius:6px">${esc(teamCode)}</code>
-        </div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(trackName)}</div>
-      </div>
-      ${partiallyScored
-        ? `<span class="badge badge-gold">تقييم ناقص — ${scoredCount} من ${criteriaList.length}</span>`
-        : alreadyScored
-          ? '<span class="badge badge-green">تم التقييم</span>'
-          : '<span class="badge badge-gray">بانتظار التقييم</span>'}
-      <i data-lucide="chevron-down" class="acc-chevron" style="width:17px;height:17px"></i>
-    </summary>`;
+function renderJudgeList(){
+  const main = document.getElementById("main-content");
+  const mine = jdProjects.filter(p => p.is_assigned)
+    .sort((a, b) => (a.judging_order ?? 999) - (b.judging_order ?? 999) || (a.team_name || "").localeCompare(b.team_name || "", "ar"));
+  // المعتذر وما فيه تعارض لا يُحتسبان في تقدّم المحكّم (يظهران في «الكل» فقط)
+  const active = mine.filter(p => !p.withdrawn && !p.has_conflict);
+  const counts = { todo: 0, draft: 0, done: 0 };
+  active.forEach(p => counts[evalStatus(p)]++);
+  const total = active.length, done = counts.done;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  if(jdFilter === "todo" && counts.todo === 0 && counts.draft === 0) jdFilter = "all";
 
-  // التعارض يُرصد للإدارة فقط — لا يُعرض للمحكّم ولا يمنعه
-  return `<details class="team-acc" ${autoOpen ? "open" : ""}>${header}
-    <div class="acc-body">
-      <details style="margin:0 0 12px">
-        <summary style="cursor:pointer;font-size:12px;color:var(--muted)">أعضاء الفريق (${teamMembers.length})</summary>
-        <div style="margin-top:8px">
-          ${teamMembers.map(m => `
-            <div style="font-size:12.5px;padding:4px 0;border-top:1px solid var(--border)">
-              ${esc(m.profiles?.full_name||"")} ${m.is_leader ? '<span class="badge badge-gold" style="font-size:9.5px">قائد</span>' : ""}
-              <br><span style="color:var(--muted)">${esc(m.profiles?.email||"")} · ${esc(m.profiles?.phone||"")}</span>
-            </div>
-          `).join("")}
-        </div>
-      </details>
-      ${isLocked ? `<div class="alert" style="display:block;background:#fef3e2;color:#92600a"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:-2px;display:inline-block"></i> ${isApproved ? "اعتمدت الإدارة نتيجة هذا الفريق — التعديل مقفل" : "تم نشر النتائج — التعديل مقفل"}</div>` : ""}
-      ${submission ? `
-        <div class="project-card">
-          <div class="project-card-head">
-            <div class="project-card-icon"><i data-lucide="lightbulb"></i></div>
-            <div>
-              <div class="project-card-title">${esc(submission.title)}</div>
-              <div class="project-card-meta">إصدار ${submission.version} · آخر تحديث ${new Date(submission.submitted_at).toLocaleDateString('ar-SA')}</div>
-            </div>
-          </div>
-          ${submission.description ? `
-            <details class="pd-fold">
-              <summary><span class="pd-row">
-                <i data-lucide="file-text"></i>
-                <span>وصف المشروع</span>
-                <span class="pd-more">عرض</span>
-              </span></summary>
-              <div class="pd-body" style="white-space:pre-line">${esc(submission.description)}</div>
-            </details>`
-            : `<p class="pd-empty">لا يوجد وصف</p>`}
-          ${(() => {
-            // حقول الابتكار الثلاثة — تفيد المحكّم في تقدير النضج
-            const flags = [
-              ["براءة اختراع", submission.has_patent],
-              ["سجل تجاري",    submission.has_commercial_registry],
-              ["نموذج مصغّر",   submission.has_prototype],
-            ].filter(([, v]) => v !== null && v !== undefined);
-            if(!flags.length) return "";
-            return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
-              ${flags.map(([label, v]) => `<span style="font-size:11.5px;padding:4px 12px;border-radius:20px;
-                background:${v ? "#e6f7f3" : "var(--border-light)"};color:${v ? "var(--teal)" : "var(--muted)"};font-weight:600">
-                ${v ? "✓" : "✗"} ${label}</span>`).join("")}
-            </div>`;
-          })()}
-          ${submission.file_url ? `<a href="${esc(submission.file_url)}" target="_blank" class="project-card-file"><i data-lucide="paperclip" style="width:13px;height:13px"></i> فتح ملف المشروع</a>` : `<p style="font-size:12px;color:var(--muted);margin-top:10px">لم يُرفق الفريق ملفًا</p>`}
-        </div>
-      ` : `<div class="project-box"><p>لم يقدّم الفريق فكرته بعد</p></div>`}
-
-      ${criteriaList.length ? `
-        <div id="criteria-form-${a.team_id}">
-          ${criteriaList.map(cr => {
-            const existing = teamScores.find(s => s.criteria_id === cr.id);
-            return `<div class="criteria-row">
-              <div><div class="c-name">${esc(cr.name_ar)}</div><div class="c-hint">الوزن ${cr.weight}% · من ${cr.max_score}</div></div>
-              <div class="score-scale" data-team="${a.team_id}" data-criteria="${cr.id}" data-max="${cr.max_score}">
-                ${Array.from({length: cr.max_score}, (_, i) => i+1).map(n => `
-                  <button type="button" class="score-btn ${Number(existing?.score)===n?'selected':''}" ${isLocked?'disabled':''}
-                    onclick="selectScore('${a.team_id}','${cr.id}',${n})">${n}</button>
-                `).join("")}
-              </div>
-              <input type="hidden" id="score-${a.team_id}-${cr.id}" value="${existing?.score ?? ''}">
-            </div>`;
-          }).join("")}
-          <div id="live-total-${a.team_id}"></div>
-          <div class="field" style="margin-top:14px"><label>تغذية راجعة للفريق</label>
-            <textarea id="comments-${a.team_id}" rows="3" placeholder="اكتب ملاحظاتك — تظهر للفريق بعد إعلان النتائج" ${isLocked ? 'disabled' : ''}>${esc(teamScores[0]?.comments||"")}</textarea>
-          </div>
-          <div id="submit-alert-${a.team_id}" class="alert"></div>
-          ${!isLocked ? `<button class="btn btn-primary" onclick='openConfirmSubmit("${a.team_id}", ${jsArg(teamName)})'>${alreadyScored ? "تحديث التقييم" : "إرسال التقييم"}</button>` : ""}
-        </div>
-      ` : `<p style="color:var(--muted);font-size:13px">لم يتم تحديد معايير تقييم لهذه الجولة بعد</p>`}
-    </div>
-  </details>`;
-}
-
-function selectScore(teamId, criteriaId, value){
-  document.getElementById(`score-${teamId}-${criteriaId}`).value = value;
-  const scale = document.querySelector(`.score-scale[data-team="${teamId}"][data-criteria="${criteriaId}"]`);
-  scale.querySelectorAll(".score-btn").forEach((btn, i) => btn.classList.toggle("selected", i+1 === value));
-  updateLiveTotal(teamId);
-}
-function updateLiveTotal(teamId){
-  const box = document.getElementById(`live-total-${teamId}`);
-  if(!box) return;
-  let sumWeighted = 0, sumWeight = 0, answeredCount = 0;
-  criteriaList.forEach(c => {
-    const input = document.getElementById(`score-${teamId}-${c.id}`);
-    const val = parseFloat(input?.value);
-    if(!isNaN(val)){
-      sumWeighted += val * c.weight;
-      sumWeight += c.weight;
-      answeredCount++;
-    }
+  const term = (document.getElementById("jd-search")?.value || "").trim().toLowerCase();
+  const visible = mine.filter(p => {
+    const st = evalStatus(p);
+    if(jdFilter !== "all" && (p.withdrawn || p.has_conflict)) return false;
+    if(jdFilter === "todo" && st === "done") return false;
+    if(jdFilter === "draft" && st !== "draft") return false;
+    if(jdFilter === "done" && st !== "done") return false;
+    if(!term) return true;
+    return [p.team_name, p.team_code, p.project_title].some(x => (x || "").toLowerCase().includes(term));
   });
-  const total = sumWeight > 0 ? (sumWeighted / sumWeight) : 0;
-  const complete = answeredCount === criteriaList.length;
-  box.innerHTML = `<div class="live-total-bar">
-    <span class="lbl">${complete ? "المجموع المرجّح الحالي" : `أدخلت ${answeredCount} من ${criteriaList.length} معايير`}</span>
-    <span class="val">${complete ? total.toFixed(2) : "—"} <small>/ ${Math.max(...criteriaList.map(c=>c.max_score))}</small></span>
+
+  const lockNote = activeRound?.is_locked
+    ? `<div class="alert" style="display:block;background:#fef3e2;color:#92600a;margin-bottom:14px"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:-2px;display:inline-block"></i> التحكيم مقفل لهذه الجولة — يمكنك الاطلاع على تقييماتك فقط</div>` : "";
+
+  main.innerHTML = (window._comCard || "") + lockNote + buildCriteriaGuide() + `
+    <div class="card jd-progress">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><strong style="font-size:15px">تقدّمك في التحكيم</strong>
+          <div class="hint" style="margin-top:2px">أرسلت <bdi>${done}</bdi> من <bdi>${total}</bdi> تقييمًا نهائيًا${counts.draft ? ` · <bdi>${counts.draft}</bdi> مسودة` : ""}</div></div>
+        <div style="font-size:22px;font-weight:800;color:${pct === 100 ? "var(--teal)" : "var(--gold)"}"><bdi>${pct}</bdi>%</div>
+      </div>
+      <div class="jd-bar"><span style="width:${pct}%"></span></div>
+    </div>
+    <div class="filter-bar" style="align-items:center">
+      <button class="filter-chip ${jdFilter==='todo'?'active':''}" onclick="setJudgeFilter('todo')">بانتظار الإرسال (${counts.todo + counts.draft})</button>
+      <button class="filter-chip ${jdFilter==='draft'?'active':''}" onclick="setJudgeFilter('draft')">مسودات (${counts.draft})</button>
+      <button class="filter-chip ${jdFilter==='done'?'active':''}" onclick="setJudgeFilter('done')">أُرسلت (${counts.done})</button>
+      <button class="filter-chip ${jdFilter==='all'?'active':''}" onclick="setJudgeFilter('all')">الكل (${mine.length})</button>
+      <input id="jd-search" placeholder="بحث باسم الفريق أو المشروع..." value="${esc(term)}" oninput="renderJudgeList();this.focus();this.setSelectionRange(this.value.length,this.value.length)" style="flex:1;min-width:170px;margin-inline-start:auto">
+    </div>
+    ${visible.length ? visible.map(p => projectRowHtml(p, true)).join("") : `<div class="card"><div class="empty-state">${
+      jdFilter === "todo" ? "أرسلت تقييم كل المشاريع المسندة لك. شكرًا لك." : "لا مشاريع بهذا التصنيف"}</div></div>`}`;
+  if(window.lucide) lucide.createIcons();
+}
+
+function projectRowHtml(p, mine){
+  const st = mine ? evalStatus(p) : null;
+  const e = jdEvals[p.team_id];
+  const t = e ? weightedTotal(e.draft_scores) : null;
+  return `<div class="card jd-row" onclick='openProject(${jsArg(p.team_id)})'>
+    ${p.judging_order ? `<span class="jd-order"><bdi>${p.judging_order}</bdi></span>` : ""}
+    <div style="flex:1;min-width:0">
+      <div style="font-size:14.5px;font-weight:700">${esc(p.team_name || "—")}
+        ${p.team_code ? `<code class="jd-code">${esc(p.team_code)}</code>` : ""}</div>
+      <div class="hint" style="margin-top:2px">${esc(p.project_title || "لم يقدّم الفريق فكرته بعد")}${p.track_name ? ` · ${esc(p.track_name)}` : ""}</div>
+    </div>
+    ${p.withdrawn ? '<span class="badge badge-red">معتذر</span>' : ""}
+    ${mine && p.has_conflict ? '<span class="badge badge-red">تعارض مصالح</span>' : ""}
+    ${mine ? statusBadge(st) : (p.is_assigned ? '<span class="badge badge-gold">مُسند إليك</span>' : '<span class="badge badge-gray">للاطلاع</span>')}
+    ${mine && t && t.total !== null && st === "done" ? `<span class="jd-score"><bdi>${t.total}</bdi></span>` : ""}
+    <i data-lucide="chevron-left" style="width:16px;height:16px;color:var(--muted)"></i>
   </div>`;
 }
 
-/* ---------------- تأكيد الإرسال قبل الحفظ (لضمان العدالة) ---------------- */
-function openConfirmSubmit(teamId, teamName){
-  const rows = criteriaList.map(c => {
-    const val = document.getElementById(`score-${teamId}-${c.id}`)?.value;
-    return { name: c.name_ar, max: c.max_score, weight: c.weight, val: val === "" ? null : parseFloat(val) };
-  });
-  if(rows.some(r => r.val === null)){
-    const alertBox = document.getElementById(`submit-alert-${teamId}`);
-    alertBox.textContent = "أكمل تقييم كل المعايير قبل الإرسال";
+/* ---------------- صفحة المشروع والتقييم ---------------- */
+function openProject(teamId){
+  const p = jdProjects.find(x => x.team_id === teamId);
+  if(!p) return;
+  jdCurrent = p;
+  const e = jdEvals[teamId];
+  jdPicked = Object.assign({}, e?.draft_scores || {});
+  const main = document.getElementById("main-content");
+  const members = Array.isArray(p.members) ? p.members : [];
+  const deliv = Array.isArray(p.deliverables) ? p.deliverables : [];
+
+  main.innerHTML = `
+    <button class="btn-back" onclick="backToList()"><i data-lucide="arrow-right" style="width:15px;height:15px"></i> رجوع للقائمة</button>
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:17px;font-weight:800">${esc(p.team_name || "—")}
+            ${p.team_code ? `<code class="jd-code">${esc(p.team_code)}</code>` : ""}</div>
+          <div class="hint" style="margin-top:4px">${esc(p.track_name || "—")}${p.committee_name ? ` · ${esc(p.committee_name)}` : ""}${p.judging_order ? ` · ترتيب العرض <bdi>${p.judging_order}</bdi>` : ""}</div>
+        </div>
+        ${p.is_assigned ? statusBadge(evalStatus(p)) : '<span class="badge badge-gray">للاطلاع فقط</span>'}
+      </div>
+      ${members.length ? `<div class="jd-members">${members.map(m => `<span class="jd-chip">${esc(m.name || "—")}${m.is_leader ? ' <span style="color:var(--gold)">★</span>' : ""}</span>`).join("")}</div>` : ""}
+    </div>
+
+    <div class="project-card" style="margin-bottom:14px">
+      <div class="project-card-head">
+        <div class="project-card-icon"><i data-lucide="lightbulb"></i></div>
+        <div><div class="project-card-title">${esc(p.project_title || "لم يقدّم الفريق فكرته بعد")}</div></div>
+      </div>
+      ${p.project_description ? `<div class="project-card-desc" style="white-space:pre-line">${esc(p.project_description)}</div>` : ""}
+      ${p.project_file_url ? `<a href="${esc(p.project_file_url)}" target="_blank" rel="noopener" class="project-card-file"><i data-lucide="paperclip" style="width:13px;height:13px"></i> فتح ملف المشروع</a>` : ""}
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:10px"><i data-lucide="folder-open" style="width:15px;height:15px;vertical-align:-3px"></i> ملفات الفريق والعرض التقديمي</div>
+      ${deliv.length ? deliv.map(d => `<a class="jd-file" href="${esc(d.file_url || "#")}" target="_blank" rel="noopener">
+          <i data-lucide="file-text" style="width:15px;height:15px"></i>
+          <span style="flex:1;min-width:0"><strong>${esc(d.title || "تسليم")}</strong><br><span class="hint">${esc(d.file_name || "")}</span></span>
+          <i data-lucide="external-link" style="width:14px;height:14px;color:var(--muted)"></i></a>`).join("")
+        : `<p class="hint" style="margin:0">لم يرفع الفريق ملفات بعد</p>`}
+    </div>
+
+    <div class="card" id="jd-scoring"></div>`;
+  renderScoring();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  if(window.lucide) lucide.createIcons();
+}
+
+function backToList(){
+  jdCurrent = null;
+  if(jdView === "all") renderAllProjects(); else renderJudgeList();
+}
+
+function renderScoring(){
+  const box = document.getElementById("jd-scoring");
+  const p = jdCurrent;
+  if(!box || !p) return;
+  const e = jdEvals[p.team_id];
+  const info = (icon, msg, color) => `<div class="alert" style="display:block;background:${color || "#eef4fb"};color:${color ? "#92600a" : "#1f4e79"}"><i data-lucide="${icon}" style="width:14px;height:14px;vertical-align:-2px;display:inline-block"></i> ${msg}</div>`;
+
+  if(!p.is_assigned){ box.innerHTML = info("info", "هذا المشروع للاطلاع فقط — غير مُسند إليك للتقييم بهذه الجولة."); return; }
+  if(!criteriaList.length){ box.innerHTML = info("info", "لم تُحدَّد معايير التقييم لهذه الجولة بعد."); return; }
+
+  const reason = p.has_conflict ? "لديك تعارض مصالح مع هذا الفريق — لا يمكنك تقييمه. تواصل مع الإدارة."
+    : p.withdrawn ? "اعتذر هذا المشروع عن التحكيم في هذه الجولة."
+    : activeRound?.is_locked ? "التحكيم مقفل لهذه الجولة — لا يمكن تسجيل أو تعديل أي درجة الآن."
+    : activeRound?.results_published ? "نُشرت نتائج هذه الجولة — التعديل مقفل."
+    : p.approved ? "اعتمدت اللجنة نتيجة هذا الفريق — التعديل مقفل."
+    : e?.is_submitted ? "أرسلت تقييمك النهائي لهذا المشروع — لا يمكن تعديله. إن احتجت تعديلًا فتواصل مع الإدارة."
+    : null;
+  const readOnly = !!reason;
+  const t = weightedTotal(jdPicked);
+
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:15px;font-weight:800">التقييم</div>
+      <div class="hint">1 ضعيف · 3 جيد · 5 ممتاز</div>
+    </div>
+    ${reason ? info(e?.is_submitted ? "check-circle" : "lock", reason, e?.is_submitted ? null : "#fef3e2") : ""}
+    ${criteriaList.map(c => {
+      const cur = Number(jdPicked[c.id]) || null;
+      return `<div class="jd-crit">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="jd-crit-name">${esc(c.name_ar)}</span>
+            ${c.description ? `<button type="button" class="jd-info" title="وصف المعيار" onclick='toggleCritDesc(${jsArg(c.id)})'>ℹ</button>` : ""}
+          </div>
+          <span class="jd-weight">الوزن <bdi>${weightPct(c)}</bdi>%</span>
+        </div>
+        ${c.description ? `<div class="jd-crit-desc" id="jd-desc-${c.id}">${esc(c.description)}</div>` : ""}
+        <div class="jd-btns">
+          ${Array.from({ length: critMax(c) }, (_, i) => i + 1).map(n => `
+            <button type="button" class="score-btn ${cur === n ? "selected" : ""}" ${readOnly ? "disabled" : ""}
+              title="${RANKS[n] || ""}" onclick='pickScore(${jsArg(c.id)}, ${n})'>${n}</button>`).join("")}
+          ${cur ? `<span class="hint" style="align-self:center">${RANKS[cur] || ""}</span>` : ""}
+        </div>
+      </div>`;
+    }).join("")}
+    <div class="live-total-bar" style="margin-top:14px">
+      <span class="lbl">${t.answered === criteriaList.length ? "الدرجة الموزونة الإجمالية" : `اخترت <bdi>${t.answered}</bdi> من <bdi>${criteriaList.length}</bdi> معايير`}</span>
+      <span class="val">${t.total !== null ? `<bdi>${t.total}</bdi>` : "—"} <small>/ 100</small></span>
+    </div>
+    <div class="field" style="margin-top:14px"><label>ملاحظة عامة للفريق (اختياري)</label>
+      <textarea id="jd-note" rows="3" placeholder="تظهر للفريق بعد إعلان النتائج" ${readOnly ? "disabled" : ""}>${esc(e?.overall_note || "")}</textarea>
+    </div>
+    <div id="jd-alert" class="alert"></div>
+    ${readOnly ? "" : `<div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-outline" id="jd-draft-btn" style="width:auto;padding:11px 20px" onclick="saveEvaluation(false)">حفظ كمسودة</button>
+      <button class="btn btn-primary" id="jd-submit-btn" style="width:auto;padding:11px 20px" onclick="openConfirmSubmit()">إرسال التقييم النهائي</button>
+    </div>
+    <p class="hint" style="margin:10px 0 0">المسودة لا تُحتسب في النتائج. بعد الإرسال النهائي لا يمكن التعديل.</p>`}`;
+  if(window.lucide) lucide.createIcons();
+}
+
+function toggleCritDesc(id){
+  const d = document.getElementById("jd-desc-" + id);
+  if(d) d.classList.toggle("open");
+}
+function pickScore(critId, n){
+  jdPicked[critId] = n;
+  const note = document.getElementById("jd-note")?.value;
+  renderScoring();
+  const ta = document.getElementById("jd-note");
+  if(ta && note !== undefined) ta.value = note;
+}
+
+/* ملخص قبل الإرسال النهائي */
+function openConfirmSubmit(){
+  const alertBox = document.getElementById("jd-alert");
+  const missing = criteriaList.filter(c => !jdPicked[c.id]);
+  if(missing.length){
+    alertBox.textContent = "يرجى اختيار درجة لكل المعايير قبل الإرسال النهائي.";
     alertBox.className = "alert error";
     return;
   }
-  const sumWeighted = rows.reduce((s,r) => s + r.val * r.weight, 0);
-  const sumWeight = rows.reduce((s,r) => s + r.weight, 0);
-  const total = sumWeight > 0 ? sumWeighted / sumWeight : 0;
-
+  const t = weightedTotal(jdPicked);
+  const note = document.getElementById("jd-note").value.trim();
   const overlay = document.createElement("div");
   overlay.className = "confirm-overlay";
   overlay.id = "confirm-overlay";
   overlay.innerHTML = `
     <div class="confirm-box">
-      <h3>تأكيد إرسال التقييم</h3>
-      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">فريق ${esc(teamName)} — راجع درجاتك بعناية، لا يمكن التراجع بسهولة بعد الإرسال</p>
-      ${rows.map(r => `<div class="confirm-row"><span>${esc(r.name)}</span><strong>${r.val} / ${r.max}</strong></div>`).join("")}
-      <div class="confirm-total-row"><span>المجموع المرجّح</span><span>${total.toFixed(2)}</span></div>
+      <h3>ملخص التقييم قبل الإرسال</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">${esc(jdCurrent.team_name)} — راجع درجاتك، لا يمكن تعديلها بعد الإرسال.</p>
+      ${criteriaList.map(c => `<div class="confirm-row"><span>${esc(c.name_ar)} <span class="hint">(${weightPct(c)}%)</span></span><strong><bdi>${jdPicked[c.id]}</bdi> / <bdi>${critMax(c)}</bdi></strong></div>`).join("")}
+      ${note ? `<div class="hint" style="margin-top:10px">ملاحظتك: ${esc(note)}</div>` : ""}
+      <div class="confirm-total-row"><span>الدرجة الموزونة الإجمالية</span><span><bdi>${t.total}</bdi> / 100</span></div>
       <div style="display:flex;gap:10px;margin-top:20px">
-        <button class="btn btn-outline" style="flex:1;background:none;border:1px solid var(--border)" onclick="document.getElementById('confirm-overlay').remove()">رجوع للتعديل</button>
-        <button class="btn btn-primary" style="flex:1" onclick="document.getElementById('confirm-overlay').remove(); submitScores('${teamId}')">تأكيد الإرسال</button>
+        <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('confirm-overlay').remove()">رجوع للتعديل</button>
+        <button class="btn btn-primary" style="flex:1" onclick="document.getElementById('confirm-overlay').remove(); saveEvaluation(true)">تأكيد الإرسال النهائي</button>
       </div>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(overlay);
 }
 
-async function submitScores(teamId){
-  const alertBox = document.getElementById(`submit-alert-${teamId}`);
-  alertBox.className = "alert";
-  const comments = document.getElementById(`comments-${teamId}`).value.trim();
+async function saveEvaluation(isSubmit){
+  const p = jdCurrent;
+  if(!p) return;
+  const alertBox = document.getElementById("jd-alert");
+  const note = document.getElementById("jd-note")?.value.trim() || "";
+  const btn = document.getElementById(isSubmit ? "jd-submit-btn" : "jd-draft-btn");
+  const label = btn?.textContent;
+  if(btn){ btn.disabled = true; btn.textContent = "جارٍ الحفظ…"; }
 
-  // فرض فترة التحكيم المحددة (إن وُجدت)
-  const { data: windowRows } = await sb.from("platform_settings").select("key,value").in("key",["judging_start_date","judging_end_date"]);
-  const wMap = {};
-  (windowRows||[]).forEach(r => wMap[r.key] = r.value);
-  const now = new Date();
-  if(wMap.judging_start_date && now < new Date(wMap.judging_start_date)){
-    alertBox.textContent = `التحكيم لم يبدأ بعد — يبدأ ${new Date(wMap.judging_start_date).toLocaleString('ar-SA')}`;
-    alertBox.className = "alert error";
-    return;
-  }
-  if(wMap.judging_end_date && now > new Date(wMap.judging_end_date)){
-    alertBox.textContent = `انتهت فترة التحكيم المحددة`;
-    alertBox.className = "alert error";
-    return;
-  }
-
-  // فحص أيام التحكيم — الفرض الفعلي بالقاعدة (ملف 70)، وهذا
-  // لعرض سبب واضح بدل رسالة خطأ عامة
-  const { data: jDays } = await sb.from("program_days")
-    .select("day_number, starts_at, ends_at").eq("phase","judging").order("day_number");
-  if(jDays && jDays.length){
-    const now2 = new Date();
-    const inside = jDays.some(d => now2 >= new Date(d.starts_at) && now2 <= new Date(d.ends_at));
-    if(!inside){
-      const next = jDays.find(d => new Date(d.starts_at) > now2);
-      alertBox.textContent = next
-        ? `التحكيم مغلق حاليًا — يفتح اليوم ${next.day_number} بتاريخ ${new Date(next.starts_at).toLocaleString('ar-SA')}`
-        : "انتهت أيام التحكيم المحددة";
-      alertBox.className = "alert error";
-      return;
-    }
-  }
-
-  const rows = [];
-  for(const c of criteriaList){
-    const input = document.getElementById(`score-${teamId}-${c.id}`);
-    const val = parseFloat(input.value);
-    if(isNaN(val) || val < 0 || val > c.max_score){
-      alertBox.textContent = `تأكد من إدخال درجة صحيحة لكل معيار (0 إلى ${c.max_score})`;
-      alertBox.className = "alert error";
-      input.focus();
-      return;
-    }
-    rows.push({ criteria_id: c.id, score: val, comments: comments || null });
-  }
-
-  const { data, error } = await sb.rpc("upsert_scores_guarded", {
-    p_round_id: activeRound.id, p_team_id: teamId, p_rows: rows
+  const { data, error } = await sb.rpc("save_evaluation", {
+    p_round_id: activeRound.id, p_team_id: p.team_id, p_scores: jdPicked, p_note: note, p_submit: isSubmit
   });
-  if(error || !data.success){ alertBox.textContent = "خطأ: " + (data?.error || error?.message); alertBox.className = "alert error"; return; }
+  if(btn){ btn.disabled = false; btn.textContent = label; }
+  if(error || !data?.success){
+    alertBox.textContent = data?.error || error?.message || "تعذّر الحفظ";
+    alertBox.className = "alert error";
+    return;
+  }
+  jdEvals[p.team_id] = Object.assign(jdEvals[p.team_id] || {}, {
+    team_id: p.team_id, draft_scores: Object.assign({}, jdPicked), overall_note: note,
+    is_submitted: isSubmit, submitted_at: isSubmit ? new Date().toISOString() : null
+  });
+  if(isSubmit){
+    renderScoring();
+    const a = document.getElementById("jd-alert");
+    a.textContent = "تم إرسال تقييمك النهائي — شكرًا لك";
+    a.className = "alert success";
+  } else {
+    alertBox.textContent = "حُفظت المسودة — لا تُحتسب حتى ترسل التقييم النهائي";
+    alertBox.className = "alert success";
+  }
+}
 
-  alertBox.textContent = "تم حفظ التقييم بنجاح"; alertBox.className = "alert success";
-  setTimeout(() => loadAssignments(), 900);
+/* ---------------- كل المشاريع (اطّلاع) ---------------- */
+async function renderAllProjects(){
+  jdView = "all";
+  const box = document.getElementById("main-content");
+  if(!activeRound || !jdProjects.length){
+    box.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
+    const { data: round } = await sb.from("judging_rounds").select("*").eq("is_active", true).limit(1).maybeSingle();
+    if(!round){ box.innerHTML = `<div class="card"><div class="empty-state">لا توجد جولة تحكيم نشطة حاليًا</div></div>`; return; }
+    activeRound = round;
+    const [crit, proj] = await Promise.all([
+      sb.from("judging_criteria").select("*").eq("round_id", round.id).order("display_order"),
+      sb.rpc("judge_projects", { p_round_id: round.id }),
+    ]);
+    criteriaList = crit.data || [];
+    jdProjects = proj.data || [];
+  }
+  const tracks = [...new Set(jdProjects.map(p => p.track_name).filter(Boolean))].sort();
+  box.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="ap-bar">
+        <div class="field" style="margin:0;flex:1;min-width:190px">
+          <label>بحث بالمشروع أو الفريق أو رقمه</label>
+          <input id="ap-search" placeholder="اكتب للبحث..." oninput="filterAllProjects()">
+        </div>
+        <div class="field" style="margin:0;min-width:170px">
+          <label>المسار</label>
+          <select id="ap-track" onchange="filterAllProjects()">
+            <option value="">كل المسارات</option>
+            ${tracks.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <p class="hint" id="ap-count" style="margin:12px 0 0"></p>
+    </div>
+    <div id="ap-list"></div>`;
+  filterAllProjects();
+}
+
+function filterAllProjects(){
+  const term  = (document.getElementById("ap-search")?.value || "").trim().toLowerCase();
+  const track = document.getElementById("ap-track")?.value || "";
+  const shown = jdProjects.filter(p => {
+    if(track && p.track_name !== track) return false;
+    if(!term) return true;
+    return [p.project_title, p.team_name, p.team_code].some(x => (x || "").toLowerCase().includes(term));
+  });
+  const cnt = document.getElementById("ap-count");
+  if(cnt) cnt.textContent = shown.length === jdProjects.length ? `${jdProjects.length} مشروعًا` : `${shown.length} من ${jdProjects.length}`;
+  const list = document.getElementById("ap-list");
+  list.innerHTML = shown.length ? shown.map(p => projectRowHtml(p, false)).join("")
+    : `<div class="card"><div class="empty-state">لا مشاريع مطابقة</div></div>`;
+  if(window.lucide) lucide.createIcons();
 }
 </script>
 <div style="position:fixed;bottom:6px;left:8px;font-size:9.5px;color:#94a3b8;opacity:.55;font-family:monospace;z-index:9999;pointer-events:none">build: seera-r2</div>

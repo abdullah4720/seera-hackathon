@@ -252,6 +252,102 @@
   .who-badge svg{width:20px; height:20px; color:#28323C; stroke-width:2.2;}
   .who-badge-sm{width:34px;height:34px;}
   .who-badge-sm svg{width:18px;height:18px;}
+  /* لوحة اللجان: سحب وإفلات واعتذار */
+  .com-drop.com-drop-over{outline:2px dashed var(--gold); outline-offset:3px; background:#fffbea;}
+  .ct-item{display:inline-block;background:#fff;border:1px solid var(--border);
+      border-radius:8px;padding:5px 11px;font-size:12px;white-space:nowrap}
+  .ct-item code{font-size:10.5px;color:var(--gold);margin-right:6px;
+      margin-inline-start:6px}
+  body.dark .ct-item{background:rgba(255,255,255,.06)}
+  .ct-item[draggable="true"]{cursor:grab;}
+  .ct-item[draggable="true"]:active{cursor:grabbing;}
+  .ct-item.ct-withdrawn{opacity:.55; text-decoration:line-through;}
+  .ct-x{border:none; background:none; color:var(--muted); cursor:pointer; font-size:11px; padding:0 2px; margin-inline-start:2px;}
+  .ct-x:hover{color:var(--danger);}
+
+  /* أنماط شاشات منقولة من منصة إنفاذ كانت مفقودة (اللجان، التنبيهات، الشبكات، الاستبيانات) */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+  .alert{padding:11px 14px;border-radius:10px;font-size:13px;line-height:1.7;
+      border:1px solid transparent;margin-bottom:12px}
+  .alert:empty{display:none;margin:0;padding:0;border:0}
+  .alert-error{background:#FDECEB;border-color:rgba(192,57,43,.25);color:#A93226}
+  .alert-success{background:#E6F7F3;border-color:rgba(217,164,0,.28);color:#8A6A00}
+  .alert-warn{background:#FBF3E2;border-color:rgba(201,146,42,.35);color:#8A6A1E}
+  body.dark .alert-error{background:rgba(192,57,43,.14);color:#F0938A}
+  body.dark .alert-success{background:rgba(217,164,0,.14);color:#F7C30D}
+  body.dark .alert-warn{background:rgba(201,146,42,.14);color:#F7C30D}
+  .judge-picker{max-height:230px;overflow-y:auto;border:1px solid var(--border);
+      border-radius:10px;padding:8px}
+  .jp-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;
+      cursor:pointer;transition:.15s}
+  .jp-item:hover{background:var(--bg,#FEFAEC)}
+  .jp-item input{margin:0;flex-shrink:0}
+  .jp-item .org{color:var(--muted);font-size:11.5px;margin-right:7px}
+  .pill-member{display:inline-block;background:var(--bg,#F2F4F7);
+      border:1px solid var(--border);border-radius:9px;padding:6px 12px;font-size:12.5px;
+      white-space:nowrap}
+  .pill-member .head{color:var(--gold);font-weight:700;margin-left:7px;
+      margin-inline-end:7px;font-size:11.5px}
+  .pill-member .nm{font-weight:600}
+  .pill-member .org{color:var(--muted);font-size:11px;margin-right:8px;
+      margin-inline-start:8px}
+  .com-teams{margin-top:12px;background:rgba(217,164,0,.055);
+      border:1px solid rgba(217,164,0,.18);border-radius:11px;padding:11px 13px}
+  .ct-head{display:flex;align-items:center;gap:7px;font-size:12.5px;
+      font-weight:700;color:#8A6A00;margin-bottom:9px}
+  .ct-head i,.ct-head svg{width:15px;height:15px;flex-shrink:0;
+      margin-left:7px;margin-inline-end:7px}
+  .ct-list{display:flex;gap:7px;flex-wrap:wrap}
+  .ct-ord{display:inline-block;min-width:18px;height:18px;line-height:18px;
+      text-align:center;background:var(--navy);color:#fff;border-radius:5px;
+      font-size:10.5px;font-weight:700;margin-left:7px;margin-inline-end:7px}
+  .fit-summary{background:var(--bg,#FEFAEC);border-radius:10px;padding:10px 14px;margin-bottom:16px}
+  .fit-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:12.5px}
+  .fit-row .ok{color:#8A6A00;font-weight:600}
+  .fit-row .no{color:var(--gold);font-weight:600}
+  .jstep{display:flex;align-items:center;gap:14px;padding:15px 0;
+      border-bottom:1px solid var(--border)}
+  .jf-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .dv-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
+  .sv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  .sv-grid{grid-template-columns:repeat(2,1fr)}
+  .sv-box{background:var(--card);border:1px solid var(--border);border-radius:12px;
+      padding:15px;text-align:center}
+  .sv-box .n{font-size:26px;font-weight:800;color:var(--navy);line-height:1.1}
+  .sv-box .l{font-size:11.5px;color:var(--muted);margin-top:4px}
+  body.dark .sv-box .n{color:#fff}
+  .sv-q{display:flex;align-items:center;gap:12px;padding:7px 0}
+  .sv-q-t{flex:1;min-width:0;font-size:12.5px;color:var(--ink);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sv-q-bar{width:130px;height:7px;border-radius:99px;background:var(--border);
+      overflow:hidden;flex-shrink:0}
+  .sv-q-bar i{display:block;height:100%;border-radius:99px;
+      background:linear-gradient(90deg,var(--teal),#F7C30D)}
+  .sv-q-n{width:34px;text-align:left;font-size:12.5px;font-weight:700;
+      color:var(--gold);flex-shrink:0}
+  .ord-in{width:52px;padding:5px 7px;text-align:center;font-family:inherit;
+      font-size:13px;font-weight:700;color:var(--navy);
+      border:1px solid var(--border);border-radius:7px;background:#fff}
+  .ord-in:focus{border-color:var(--teal);outline:none}
+  body.dark .ord-in{background:rgba(255,255,255,.06);color:#fff}
+  .jstep:last-of-type{border-bottom:0}
+  .jstep-num{width:32px;height:32px;border-radius:50%;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--bg,#F0F1F5);color:var(--muted);font-weight:700;font-size:14px}
+  .jstep.done .jstep-num{background:rgba(217,164,0,.15);color:#8A6A00}
+  .jstep-body{flex:1;min-width:0}
+  .jstep-title{font-weight:700;font-size:14.5px;color:var(--navy)}
+  .jstep.done .jstep-title{color:var(--navy)}
+  .jstep-desc{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .jstep-actions{display:flex;gap:7px;flex-wrap:wrap;flex-shrink:0}
+  .jstep-actions .btn{width:auto}
+  .jstep{flex-wrap:wrap}
+  .jstep-actions{width:100%;padding-right:46px}
+  .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-bottom:14px}
+  .hint{font-size:12.5px;color:var(--muted);line-height:1.7}
+  .btn-link{background:none;border:none;color:var(--gold);cursor:pointer;font-family:inherit;font-size:12.5px;padding:2px 4px}
+  .section-title{font-size:15px;font-weight:700;margin:18px 0 10px}
+  
 </style>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="config.js"></script>
@@ -4453,8 +4549,15 @@ async function renderCommittees(){
   const inCommittee  = list.reduce((a,c) => a + (c.committee_members||[]).length, 0);
   const readyComs    = list.filter(c => (c.committee_members||[]).length).length;
 
-  const { data: asg } = await sb.from("judge_assignments")
-    .select("team_id, committee_id, round_id, judging_order, teams(team_name, team_code)");
+  const [{ data: asg }, { data: wdr }, { data: scoredRows }] = await Promise.all([
+    sb.from("judge_assignments").select("id, team_id, judge_user_id, committee_id, round_id, judging_order, teams(team_name, team_code)"),
+    sb.from("judging_withdrawals").select("team_id, round_id, reason, withdrawn_at, teams(team_name, team_code)"),
+    sb.from("scores").select("team_id, judge_user_id, round_id"),
+  ]);
+  window._comAsg = asg || [];
+  window._comScored = new Set((scoredRows || []).map(x => `${x.judge_user_id}|${x.team_id}|${x.round_id}`));
+  const withdrawnSet = new Set((wdr || []).map(w => `${w.team_id}|${w.round_id}`));
+  window._withdrawals = wdr || [];
   const assignedTeams = new Set((asg||[]).map(a => a.team_id)).size;
 
   // مشاريع كل لجنة: صف لكل محكّم، فنجمّعها بالفريق.
@@ -4465,7 +4568,8 @@ async function renderCommittees(){
   (asg || []).forEach(a => {
     if(a.committee_id){
       (teamsByCommittee[a.committee_id] ||= new Map())
-        .set(a.team_id, { ...a.teams, order: a.judging_order });
+        .set(a.team_id, { ...a.teams, order: a.judging_order, team_id: a.team_id, round_id: a.round_id,
+                          withdrawn: withdrawnSet.has(`${a.team_id}|${a.round_id}`) });
     } else {
       orphanTeams.set(a.team_id, a.teams);
     }
@@ -4528,7 +4632,8 @@ async function renderCommittees(){
           ? `<bdi>${assignedTeams}</bdi> من <bdi>${projectCount}</bdi> مشروعًا مسنَد`
           : `<bdi>${projectCount}</bdi> مشروعًا بانتظار الإسناد`,
         `<button class="btn ${readyComs ? "btn-primary" : "btn-outline"} btn-sm"
-           ${!readyComs ? "disabled" : ""} onclick="openAssignProjectsModal()">إسناد تلقائي</button>`)}
+           ${!readyComs ? "disabled" : ""} onclick="openAssignProjectsModal()">إسناد تلقائي</button>
+         ${assignedTeams ? `<button class="btn btn-outline btn-sm" onclick="openResetAssignments()">إعادة تعيين الإسناد</button>` : ""}`)}
 
       ${orphanTeams.size ? `
         <div class="alert alert-warn" style="margin-top:12px">
@@ -4551,7 +4656,8 @@ async function renderCommittees(){
          ${list.map(c => {
             const mem = c.committee_members || [];
             const track = window._tracks.find(t => t.id === c.track_id);
-            return `<div class="card" style="margin-bottom:12px">
+            return `<div class="card com-drop" data-com="${c.id}" style="margin-bottom:12px"
+                ondragover="comDragOver(event)" ondragleave="comDragLeave(event)" ondrop='comDrop(event, ${jsArg(c.id)}, ${jsArg(c.name_ar)})'>
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                 <div style="flex:1;min-width:220px">
                   <h3 style="margin:0 0 4px">${esc(c.name_ar)}
@@ -4570,20 +4676,24 @@ async function renderCommittees(){
               ${(() => {
                 const tm = teamsByCommittee[c.id];
                 if(!tm || !tm.size) return `<p class="hint" style="margin:10px 0 0">
-                  لا مشاريع مسنَدة — استخدم «إسناد لمشاريع»</p>`;
+                  لا مشاريع مسنَدة — استخدم «إسناد لمشاريع» أو اسحب مشروعًا من لجنة أخرى إلى هنا</p>`;
                 // مرتّبة بترتيب التحكيم: هذا جدول القاعة الفعلي
                 const sorted = [...tm.values()].sort((a, b) =>
                   (a?.order ?? 999) - (b?.order ?? 999));
                 return `<div class="com-teams">
                   <div class="ct-head">
                     <i data-lucide="folder-check"></i>
-                    <bdi>${tm.size}</bdi> مشروعًا مسنَدًا — بترتيب التحكيم
+                    <bdi>${tm.size}</bdi> مشروعًا مسنَدًا — بترتيب التحكيم · اسحب البطاقة لنقلها للجنة أخرى
                   </div>
                   <div class="ct-list">
-                    ${sorted.map(t => `<span class="ct-item">
+                    ${sorted.map(t => `<span class="ct-item ${t.withdrawn ? "ct-withdrawn" : ""}" draggable="${t.withdrawn ? "false" : "true"}"
+                        ondragstart='comDragStart(event, ${jsArg(t.team_id)}, ${jsArg(t.round_id)}, ${jsArg(c.id)})' title="${t.withdrawn ? "معتذر عن التحكيم" : "اسحب لنقل المشروع"}">
                       ${t?.order ? `<b class="ct-ord">${t.order}</b>` : ""}
                       ${esc(t?.team_name || "—")}
                       ${t?.team_code ? `<code>${esc(t.team_code)}</code>` : ""}
+                      ${t.withdrawn
+                        ? `<span class="badge badge-red" style="font-size:9.5px">معتذر</span>`
+                        : `<button type="button" class="ct-x" title="اعتذار المشروع عن التحكيم" onclick='withdrawTeam(${jsArg(t.team_id)}, ${jsArg(t.round_id)}, ${jsArg(t.team_name || "")})'>✕</button>`}
                     </span>`).join("")}
                   </div>
                 </div>`;
@@ -4595,8 +4705,148 @@ async function renderCommittees(){
               </div>` : `<p class="hint" style="margin:10px 0 0">لا أعضاء — أضف محكّمين من «تعديل»</p>`}
             </div>`;
           }).join("")}`}
+    ${(window._withdrawals || []).length ? `
+      <div class="card" style="border-right:3px solid var(--danger)">
+        <h3 style="margin:0 0 4px;font-size:15px">مشاريع معتذرة عن التحكيم (<bdi>${window._withdrawals.length}</bdi>)</h3>
+        <p class="hint" style="margin:0 0 10px">لا تظهر للتقييم ولا يستطيع المحكّمون تقييمها حتى يُلغى الاعتذار</p>
+        <table><thead><tr><th>المشروع</th><th>السبب</th><th>التاريخ</th><th></th></tr></thead><tbody>
+          ${window._withdrawals.map(w => `<tr>
+            <td><strong>${esc(w.teams?.team_name || "—")}</strong> ${w.teams?.team_code ? `<code>${esc(w.teams.team_code)}</code>` : ""}</td>
+            <td style="font-size:12.5px">${esc(w.reason || "—")}</td>
+            <td style="font-size:12px;color:var(--muted)">${fmtDate(w.withdrawn_at)}</td>
+            <td><button class="btn btn-outline btn-sm" onclick='undoWithdrawTeam(${jsArg(w.team_id)}, ${jsArg(w.round_id)})'>إلغاء الاعتذار</button></td>
+          </tr>`).join("")}
+        </tbody></table>
+      </div>` : ""}
   `;
   if(window.lucide) lucide.createIcons();
+}
+
+/* ---------- لوحة السحب والإفلات بين اللجان ---------- */
+let comDrag = null;
+function comDragStart(ev, teamId, roundId, fromCom){
+  comDrag = { teamId, roundId, fromCom };
+  ev.dataTransfer.effectAllowed = "move";
+  try{ ev.dataTransfer.setData("text/plain", teamId); }catch(e){}
+}
+function comDragOver(ev){
+  if(!comDrag) return;
+  ev.preventDefault();
+  ev.currentTarget.classList.add("com-drop-over");
+}
+function comDragLeave(ev){ ev.currentTarget.classList.remove("com-drop-over"); }
+async function comDrop(ev, toCom, toName){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("com-drop-over");
+  const d = comDrag; comDrag = null;
+  if(!d || d.fromCom === toCom) return;
+  const { data, error } = await sb.rpc("assign_committee_to_team", { p_committee_id: toCom, p_team_id: d.teamId, p_round_id: d.roundId });
+  if(error || !data?.success){ showToast(data?.error || error?.message || "تعذّر النقل", true); return; }
+  logActivity("نقل مشروع بين اللجان", "judge_assignments", d.teamId, { to: toCom });
+  showToast(`نُقل المشروع إلى «${toName}»`);
+  renderCommittees();
+}
+async function withdrawTeam(teamId, roundId, name){
+  const reason = prompt(`اعتذار «${name}» عن التحكيم؟\nاكتب السبب (اختياري):`, "");
+  if(reason === null) return;
+  const { data, error } = await sb.rpc("set_team_withdrawal", { p_team_id: teamId, p_round_id: roundId, p_withdrawn: true, p_reason: reason });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+  logActivity("اعتذار مشروع عن التحكيم", "judging_withdrawals", teamId, { reason });
+  showToast("سُجّل الاعتذار — لن يظهر المشروع للتقييم");
+  renderCommittees();
+}
+async function undoWithdrawTeam(teamId, roundId){
+  const { data, error } = await sb.rpc("set_team_withdrawal", { p_team_id: teamId, p_round_id: roundId, p_withdrawn: false });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+  logActivity("إلغاء اعتذار مشروع", "judging_withdrawals", teamId);
+  showToast("أُلغي الاعتذار — عاد المشروع للتحكيم");
+  renderCommittees();
+}
+/* إعادة تعيين الإسناد: يحذف الإسنادات التي لم يُقيَّم فيها شيء فقط */
+function openResetAssignments(){
+  const asg = window._comAsg || [], scored = window._comScored || new Set();
+  const removable = asg.filter(a => !scored.has(`${a.judge_user_id}|${a.team_id}|${a.round_id}`));
+  const kept = asg.length - removable.length;
+  openModal(`<h3>إعادة تعيين الإسناد</h3>
+    <p class="hint" style="margin:0 0 12px">تُحذف إسنادات المشاريع للجان والمحكّمين لتبدأ التوزيع من جديد. اللجان وأعضاؤها تبقى كما هي.</p>
+    <div class="alert alert-warn" style="display:block">سيُحذف <bdi>${removable.length}</bdi> إسنادًا${kept ? ` · ويبقى <bdi>${kept}</bdi> لأن المحكّم أرسل تقييمه فيها` : ""}</div>
+    <div class="field"><label>اكتب «حذف» للتأكيد</label><input id="reset-confirm" oninput="document.getElementById('reset-go').disabled = this.value.trim() !== 'حذف'"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-danger" id="reset-go" disabled onclick="doResetAssignments()">إعادة التعيين</button>
+    </div>`);
+}
+async function doResetAssignments(){
+  const asg = window._comAsg || [], scored = window._comScored || new Set();
+  const ids = asg.filter(a => !scored.has(`${a.judge_user_id}|${a.team_id}|${a.round_id}`)).map(a => a.id);
+  for(let i = 0; i < ids.length; i += 100){
+    const { error } = await sb.from("judge_assignments").delete().in("id", ids.slice(i, i + 100));
+    if(error){ showToast("خطأ: " + error.message, true); return; }
+  }
+  logActivity("إعادة تعيين إسناد التحكيم", "judge_assignments", null, { removed: ids.length });
+  closeModal();
+  showToast(`حُذف ${ids.length} إسنادًا — يمكنك الإسناد من جديد`);
+  renderCommittees();
+}
+
+/* ---------------- ملفات العروض ---------------- */
+let presFilter = { com: "", missing: false };
+async function renderJudgingPresentations(){
+  const body = document.getElementById("judging-body");
+  body.innerHTML = `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
+  const { data: round } = await sb.from("judging_rounds").select("id,name_ar").eq("is_active", true).order("round_order").limit(1).maybeSingle();
+  if(!round){ body.innerHTML = `<div class="card"><div class="empty-state">لا توجد جولة تحكيم نشطة — فعّل جولة من تبويب «الجولات»</div></div>`; return; }
+  const { data, error } = await sb.rpc("judge_projects", { p_round_id: round.id });
+  if(error){ body.innerHTML = `<div class="card"><div class="alert alert-error">${esc(error.message)}</div></div>`; return; }
+  window._presRows = (data || []).sort((a, b) => (a.committee_name || "ي").localeCompare(b.committee_name || "ي", "ar") || (a.judging_order ?? 999) - (b.judging_order ?? 999));
+  window._presRound = round;
+  drawPresentations();
+}
+function drawPresentations(){
+  const body = document.getElementById("judging-body");
+  const rows = window._presRows || [];
+  const coms = [...new Set(rows.map(r => r.committee_name).filter(Boolean))];
+  const shown = rows.filter(r => (!presFilter.com || r.committee_name === presFilter.com)
+                              && (!presFilter.missing || !(r.deliverables || []).length));
+  const missing = rows.filter(r => !(r.deliverables || []).length).length;
+  body.innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><strong>ملفات العروض — ${esc(window._presRound?.name_ar || "")}</strong>
+          <p class="hint" style="margin:4px 0 0">يرفع الفريق ملفاته من صفحته (التسليمات)، ويفتحها المحكّم من صفحة المشروع. <bdi>${rows.length - missing}</bdi> من <bdi>${rows.length}</bdi> رفعوا ملفاتهم.</p></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select onchange="presFilter.com=this.value;drawPresentations()" style="width:auto;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--card);color:var(--ink)">
+            <option value="">كل اللجان</option>
+            ${coms.map(c => `<option ${presFilter.com === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:0"><input type="checkbox" style="width:auto" ${presFilter.missing ? "checked" : ""} onchange="presFilter.missing=this.checked;drawPresentations()"> لم يرفعوا فقط (<bdi>${missing}</bdi>)</label>
+          <button class="btn btn-outline btn-sm" onclick="exportPresentationsCSV()">تصدير CSV</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">${!shown.length ? `<div class="empty-state">لا مشاريع مطابقة — أسند المشاريع للجان أولًا</div>` : `
+      <table><thead><tr><th>اللجنة</th><th>الترتيب</th><th>المشروع</th><th>الملفات</th></tr></thead><tbody>
+      ${shown.map(r => `<tr ${r.withdrawn ? 'style="opacity:.55"' : ""}>
+        <td style="font-size:12.5px">${esc(r.committee_name || "—")}</td>
+        <td>${r.judging_order ? `<b>${r.judging_order}</b>` : "—"}</td>
+        <td><strong>${esc(r.team_name || "—")}</strong> ${r.team_code ? `<code>${esc(r.team_code)}</code>` : ""}
+          <br><span class="hint">${esc(r.project_title || "لم يقدّم فكرته بعد")}</span>
+          ${r.withdrawn ? ' <span class="badge badge-red">معتذر</span>' : ""}</td>
+        <td>${(r.deliverables || []).length
+          ? r.deliverables.map(d => `<a href="${esc(d.file_url || "#")}" target="_blank" rel="noopener" class="badge badge-green" style="margin:2px;text-decoration:none">${esc(d.title || "ملف")}</a>`).join("")
+          : '<span class="badge badge-red">لم يرفع</span>'}</td>
+      </tr>`).join("")}
+      </tbody></table>`}</div>`;
+}
+function exportPresentationsCSV(){
+  const rows = window._presRows || [];
+  const head = ["اللجنة","الترتيب","الفريق","رمز الفريق","المشروع","الملفات","الحالة"];
+  const lines = [head].concat(rows.map(r => [r.committee_name || "", r.judging_order || "", r.team_name || "", r.team_code || "",
+    r.project_title || "", (r.deliverables || []).map(d => d.title).join(" | "), r.withdrawn ? "معتذر" : ((r.deliverables || []).length ? "رفع" : "لم يرفع")]));
+  const csv = "\ufeff" + lines.map(l => l.map(x => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "ملفات-العروض.csv"; a.click();
 }
 
 async function makeAllGeneral(){
@@ -5096,7 +5346,7 @@ function filterJudgingViews(){
       <td>${esc(r.اللجنة || "—")}</td>
       <td><bdi>${r.محكّمون_قيّموا ?? 0}</bdi> من <bdi>${r.محكّمون_مسنَدون ?? 0}</bdi></td>
       <td><span class="badge ${cls(r.الحالة)}">${esc(r.الحالة)}</span></td>
-      <td>${r.متوسط_الدرجة ?? "—"}</td>
+      <td>${score100(r.متوسط_الدرجة)}</td>
     </tr>`).join("")
     : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:22px">
          لا مشاريع مطابقة</td></tr>`;
@@ -5214,7 +5464,7 @@ async function renderJudgingProgress(){
         <td><bdi>${r.محكّمون_قيّموا ?? 0}</bdi> من <bdi>${r.محكّمون_مسنَدون ?? 0}</bdi></td>
         <td><span class="badge ${cls(r.الحالة)}">${esc(r.الحالة)}</span>
           ${r.فيه_تعارض ? ' <span class="badge badge-gold">تعارض</span>' : ""}</td>
-        <td>${r.متوسط_الدرجة ?? "—"}</td>
+        <td>${score100(r.متوسط_الدرجة)}</td>
       </tr>`).join("")}
       </tbody></table>
     </div>
@@ -5264,8 +5514,10 @@ async function renderJudging(){
   main.innerHTML = `<div class="page-header"><div><h1>التحكيم</h1><p>إدارة جولات التحكيم ومعايير التقييم وتعيين المحكّمين ونتائج الفرق</p></div></div>
     ${judgingWindowNote}
     <div class="tabs" id="judging-tabs">
-      <div class="tab ${judgingTab==='rounds'?'active':''}" data-t="rounds">الجولات والمعايير</div>
+      <div class="tab ${judgingTab==='rounds'?'active':''}" data-t="rounds">الجولات</div>
+      <div class="tab ${judgingTab==='criteria'?'active':''}" data-t="criteria">المعايير</div>
       <div class="tab ${judgingTab==='committees'?'active':''}" data-t="committees">اللجان والتعيين</div>
+      <div class="tab ${judgingTab==='presentations'?'active':''}" data-t="presentations">ملفات العروض</div>
       <div class="tab ${judgingTab==='judges'?'active':''}" data-t="judges">المحكّمون</div>
       <div class="tab ${judgingTab==='results'?'active':''}" data-t="results">النتائج المجمّعة</div>
       <div class="tab ${judgingTab==='progress'?'active':''}" data-t="progress">سير التحكيم</div>
@@ -5285,7 +5537,8 @@ async function renderJudging(){
   if(judgingTab === "committees") renderCommittees();
   else if(judgingTab === "assignments") renderCommittees();
   else if(judgingTab === "progress") renderJudgingProgress();
-  else if(judgingTab === "rounds") renderJudgingRounds();
+  else if(judgingTab === "rounds" || judgingTab === "criteria") renderJudgingRounds();
+  else if(judgingTab === "presentations") renderJudgingPresentations();
   else if(judgingTab === "assignments") renderJudgingAssignments();
   else if(judgingTab === "judges") renderJudgesManagement();
   else if(judgingTab === "summary") renderJudgingSummary();
@@ -5433,7 +5686,7 @@ async function confirmReassignJudge(oldJudgeId){
   });
   if(error || !data.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
   logActivity("استبدال محكّم", "judge_assignment", null, {count: data.reassigned_count});
-  showToast(`تم نقل ${data.reassigned_count} فريق للمحكّم البديل`);
+  showToast(`نُقل ${data.reassigned_count} مشروعًا للبديل` + (data.kept_count ? ` · بقي ${data.kept_count} مع الأصلي لأنه قيّمها` : ""));
   closeModal();
   renderJudgesManagement();
 }
@@ -5682,7 +5935,11 @@ async function assignJudgeToTeam(teamId){
 
 async function renderJudgingRounds(){
   const body = document.getElementById("judging-body");
-  body.innerHTML = `<div class="toolbar"><div></div><button class="btn btn-primary" onclick="openRoundModal()">+ إضافة جولة</button></div>
+  const critMode = judgingTab === "criteria";
+  body.innerHTML = critMode
+    ? `<p class="hint" style="margin:0 0 14px">لكل معيار وزن (يُحسب منه المجموع من 100) ووصف يظهر للمحكّم بزر ℹ. يقيّم المحكّم كل معيار من 1 إلى 5.</p>
+       <div id="rounds-list">${skeletonRows(4)}</div>`
+    : `<div class="toolbar"><p class="hint" style="margin:0;flex:1">كل جولة لها معاييرها ولجانها ونتائجها المستقلة. «قفل الجولة» يوقف التقييم لكل المحكّمين فورًا.</p><button class="btn btn-primary" style="width:auto;flex-shrink:0" onclick="openRoundModal()">+ إضافة جولة</button></div>
     <div id="rounds-list">${skeletonRows(4)}</div>`;
 
   const { data: rounds, error } = await sb.from("judging_rounds").select("*, judging_criteria(*)").order("round_order");
@@ -5690,18 +5947,36 @@ async function renderJudgingRounds(){
   if(error) return box.innerHTML = `<div class="empty-state">خطأ: ${esc(error.message)}</div>`;
   if(!rounds.length) return box.innerHTML = `<div class="empty-state">لا توجد جولات تحكيم بعد</div>`;
 
+  if(!critMode){
+    box.innerHTML = `<div class="card"><table><thead><tr><th>الجولة</th><th>المعايير</th><th>الحالة</th><th></th></tr></thead><tbody>
+      ${rounds.map(r => {
+        const w = (r.judging_criteria||[]).reduce((a,c) => a + Number(c.weight||0), 0);
+        return `<tr>
+          <td><strong>${esc(r.name_ar)}</strong></td>
+          <td style="font-size:12.5px"><bdi>${(r.judging_criteria||[]).length}</bdi> معايير · مجموع الأوزان <bdi>${w}</bdi>%${w !== 100 && (r.judging_criteria||[]).length ? ' <span class="badge badge-gold">ليس 100</span>' : ""}</td>
+          <td>${r.is_active ? '<span class="badge badge-green">نشطة</span>' : '<span class="badge badge-gray">غير نشطة</span>'}
+            ${r.is_locked ? '<span class="badge badge-red">مقفلة</span>' : ""}
+            ${r.results_published ? '<span class="badge badge-gold">النتائج منشورة</span>' : ""}</td>
+          <td class="row-actions">
+            <button class="btn btn-outline btn-sm" onclick="toggleRoundActive('${r.id}', ${!r.is_active})">${r.is_active ? "إيقاف" : "تفعيل"}</button>
+            <button class="btn ${r.is_locked ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="toggleRoundLock('${r.id}', ${!r.is_locked})">${r.is_locked ? "فتح التحكيم" : "قفل الجولة"}</button>
+            <button class="btn ${r.results_published ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="togglePublishResults('${r.id}', ${!r.results_published})">${r.results_published ? "إخفاء النتائج عن الفرق" : "نشر النتائج للفرق"}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteRow('judging_rounds','${r.id}', renderJudgingRounds)">حذف</button>
+          </td></tr>`;
+      }).join("")}
+      </tbody></table></div>`;
+    return;
+  }
+
   box.innerHTML = rounds.map(r => `
     <div class="card">
       <div class="toolbar" style="margin-bottom:10px">
         <h3 style="margin:0">${esc(r.name_ar)}
           ${r.is_active ? '<span class="badge badge-green">نشطة</span>' : '<span class="badge badge-gray">غير نشطة</span>'}
-          ${r.results_published ? '<span class="badge badge-gold">النتائج منشورة</span>' : ''}
+          <span class="hint" style="font-weight:400;font-size:12px">· مجموع الأوزان <bdi>${(r.judging_criteria||[]).reduce((a,c)=>a+Number(c.weight||0),0)}</bdi>%</span>
         </h3>
         <div class="row-actions">
-          <button class="btn btn-outline btn-sm" onclick="toggleRoundActive('${r.id}', ${!r.is_active})">${r.is_active ? "إيقاف" : "تفعيل"}</button>
-          <button class="btn btn-outline btn-sm" onclick="openCriteriaModal('${r.id}')">+ معيار</button>
-          <button class="btn ${r.results_published ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="togglePublishResults('${r.id}', ${!r.results_published})">${r.results_published ? "إخفاء النتائج عن الفرق" : "نشر النتائج للفرق"}</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteRow('judging_rounds','${r.id}', renderJudgingRounds)">حذف الجولة</button>
+          <button class="btn btn-primary btn-sm" onclick="openCriteriaModal('${r.id}')">+ معيار</button>
         </div>
       </div>
       ${!r.judging_criteria.length ? '<div class="empty-state">لا توجد معايير مضافة لهذه الجولة</div>' : `
@@ -5715,15 +5990,15 @@ async function renderJudgingRounds(){
             <div style="width:34px;height:34px;border-radius:9px;background:#fbf3e2;color:var(--gold);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${idx+1}</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:13.5px;font-weight:700;color:var(--ink)">${esc(c.name_ar)}</div>
-              ${c.description ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(c.description)}</div>` : ""}
+              ${c.description ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;white-space:pre-line">${esc(c.description)}</div>` : ""}
             </div>
             <div style="text-align:center;flex-shrink:0">
               <div style="font-size:15px;font-weight:800;color:var(--navy)">${c.weight}%</div>
               <div style="font-size:10px;color:var(--muted)">الوزن</div>
             </div>
             <div style="text-align:center;flex-shrink:0">
-              <div style="font-size:15px;font-weight:800;color:var(--teal)">${c.max_score}</div>
-              <div style="font-size:10px;color:var(--muted)">أقصى درجة</div>
+              <div style="font-size:15px;font-weight:800;color:var(--teal)"><bdi dir="ltr">1–${c.max_score}</bdi></div>
+              <div style="font-size:10px;color:var(--muted)">التقييم</div>
             </div>
             <div class="row-actions" style="flex-shrink:0">
               <button class="btn btn-outline btn-sm" onclick='openCriteriaModal("${r.id}", ${jsArg(c)})'>تعديل</button>
@@ -5734,6 +6009,14 @@ async function renderJudgingRounds(){
       </div>`}
     </div>
   `).join("");
+}
+async function toggleRoundLock(roundId, lock){
+  if(lock && !confirm("قفل الجولة؟\n\nلن يستطيع أي محكّم حفظ أو إرسال أي تقييم حتى تفتحها مجددًا.")) return;
+  const { data, error } = await sb.rpc("set_round_lock", { p_round_id: roundId, p_locked: lock });
+  if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
+  logActivity(lock ? "قفل جولة تحكيم" : "فتح جولة تحكيم", "judging_rounds", roundId);
+  showToast(lock ? "قُفلت الجولة — توقف التقييم" : "فُتح التحكيم للجولة");
+  renderJudgingRounds();
 }
 async function moveCriteriaOrder(roundId, criteriaId, direction){
   const { data: criteria } = await sb.from("judging_criteria").select("id,display_order").eq("round_id", roundId).order("display_order");
@@ -5854,6 +6137,8 @@ async function saveCriteria(roundId, id, oldMax){
   closeModal();
   renderJudgingRounds();
 }
+/* الدرجات 1–5 موزونة → من 100 للعرض */
+function score100(v){ return (v === null || v === undefined || v === "") ? "—" : (Number(v) * 20).toFixed(1); }
 async function renderJudgingResults(){
   const body = document.getElementById("judging-body");
   body.innerHTML = `<div id="consistency-check-box"></div><div class="card"><div id="results-table">${skeletonRows(4)}</div></div>`;
@@ -5862,14 +6147,14 @@ async function renderJudgingResults(){
   if(error) return box.innerHTML = `<div class="empty-state">خطأ: ${esc(error.message)}</div>`;
   if(!data.length) return box.innerHTML = `<div class="empty-state">لا توجد نتائج تحكيم مسجّلة بعد</div>`;
   box.innerHTML = `<table><thead><tr>
-    <th>الفريق</th><th>المسار</th><th>الجولة</th><th>عدد المحكّمين</th><th>المعدل المرجّح</th>
+    <th>الفريق</th><th>المسار</th><th>الجولة</th><th>محكّمون أرسلوا</th><th>الدرجة (من 100)</th>
     </tr></thead><tbody>
     ${data.map(r => `<tr>
       <td><strong>${esc(r.team_name)}</strong></td>
       <td>${esc(r.track_name)}</td>
       <td>${esc(r.round_name)}</td>
       <td>${r.judges_count}</td>
-      <td>${r.weighted_average ? Number(r.weighted_average).toFixed(2) : "—"}</td>
+      <td><strong>${score100(r.weighted_average)}</strong></td>
     </tr>`).join("")}
     </tbody></table>`;
 
@@ -6042,7 +6327,7 @@ function drawSummaryTable(){
         <td>${esc(r.track_name||"—")}</td>
         <td>${esc(r.round_name)}</td>
         <td>${submitted} / ${assigned}${incomplete ? ` <span class="badge badge-gold">ناقص</span>` : ""}</td>
-        <td><strong>${r.weighted_average !== null ? Number(r.weighted_average).toFixed(2) : "—"}</strong></td>
+        <td><strong>${score100(r.weighted_average)}</strong></td>
         <td>${spread !== null ? (spread > 1.2 ? `<span class="badge badge-gold">${spread.toFixed(2)}</span>` : spread.toFixed(2)) : "—"}</td>
         <td>${isApproved
               ? `<span class="badge badge-green">معتمدة</span>`
@@ -6335,7 +6620,7 @@ async function renderJudgeWorkload(){
               </div>
               <span style="font-size:11px;color:var(--muted)">${pct}%</span>
             </td>
-            <td style="text-align:center">${r.avg_score !== null && r.avg_score !== undefined ? Number(r.avg_score).toFixed(2) : "—"}</td>
+            <td style="text-align:center">${score100(r.avg_score)}</td>
             <td style="font-size:11.5px;color:var(--muted)">${r.last_activity ? fmtDate(r.last_activity) : "—"}</td>
           </tr>`;
         }).join("")}
@@ -6466,7 +6751,7 @@ async function exportResultsExcel(){
     المركز: r.rank_in_track ?? "",
     الفريق: r.team_name,
     المشروع: r.project_title || "—",
-    النتيجة_النهائية: r.final_score !== null ? Number(r.final_score) : null,
+    النتيجة_النهائية_من_100: r.final_score !== null ? Number((Number(r.final_score) * 20).toFixed(1)) : null,
     عدد_المحكمين: r.judges_count,
     التفاوت: r.spread !== null ? Number(r.spread) : null,
     تقييم_جزئي: r.has_partial ? "نعم" : "",
@@ -6625,9 +6910,9 @@ async function renderRankings(){
             <td style="font-size:12.5px;color:var(--muted)">${esc(r.track_name||"—")}</td>
             <td style="font-size:12.5px">${esc(r.project_title||"—")}
               ${r.has_partial ? ` <span class="badge badge-gold" style="font-size:9px">جزئي</span>` : ""}</td>
-            <td style="text-align:center"><strong style="font-size:15px">${r.final_score !== null ? Number(r.final_score).toFixed(2) : "—"}</strong></td>
+            <td style="text-align:center"><strong style="font-size:15px">${score100(r.final_score)}</strong></td>
             <td style="text-align:center">${r.judges_count}</td>
-            <td style="text-align:center;font-size:12.5px;color:${Number(r.spread) > 1.2 ? "var(--gold)" : "var(--muted)"}">${Number(r.spread).toFixed(2)}</td>
+            <td style="text-align:center;font-size:12.5px;color:${Number(r.spread) > 1.2 ? "var(--gold)" : "var(--muted)"}">${score100(r.spread)}</td>
             <td>${r.approval_status === "approved"
                   ? `<span class="badge badge-green">معتمدة</span>`
                   : `<span class="badge badge-gray">غير معتمدة</span>`}</td>

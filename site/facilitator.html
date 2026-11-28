@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة الميسّرين | هاكثون السيرة النبوية</title>
+<title>لوحة المنظّمين | هاكثون السيرة النبوية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -101,21 +101,21 @@
 </div>
 
 <div id="auth-gate-screen" class="auth-gate">
-  <h2>لوحة الميسّرين</h2>
-  <p>سجّل دخولك بحساب الميسّر الخاص بك</p>
+  <h2>لوحة المنظّمين</h2>
+  <p>سجّل دخولك بحساب المنظّم الخاص بك</p>
   <div id="gate-alert" class="alert"></div>
   <div class="field"><input type="email" id="gate-email" placeholder="البريد الإلكتروني"></div>
   <div class="field"><input type="password" id="gate-password" placeholder="كلمة المرور"></div>
   <button class="btn btn-primary" onclick="handleGateLogin()">دخول</button>
-  <p style="margin-top:14px;font-size:13px">لست ميسّرًا بعد؟ <a href="./facilitator-apply.html" style="color:var(--gold);font-weight:700">قدّم طلب الانضمام</a></p>
+  <p style="margin-top:14px;font-size:13px">لست منظّمًا بعد؟ <a href="./facilitator-apply.html" style="color:var(--gold);font-weight:700">قدّم طلب الانضمام</a></p>
 </div>
 
 <div id="content-screen" style="display:none">
   <header>
     <div class="header-row">
       <div>
-        <h1 id="facilitator-welcome">لوحة الميسّرين</h1>
-        <p>لوحة الميسّر — هاكثون السيرة النبوية</p>
+        <h1 id="facilitator-welcome">لوحة المنظّمين</h1>
+        <p>لوحة المنظّم — هاكثون السيرة النبوية</p>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button id="theme-toggle" onclick="toggleTheme()" title="تبديل الوضع الداكن/الفاتح" style="background:none;border:1px solid rgba(255,255,255,.25);border-radius:8px;width:32px;height:32px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><i data-lucide="moon" style="width:15px;height:15px"></i></button>
@@ -184,7 +184,7 @@ async function handleGateLogin(){
   const roleKeys = (roles||[]).map(r => r.roles?.key);
   if(!roleKeys.includes("facilitator") && !roleKeys.includes("admin") && !roleKeys.includes("coordinator")){
     await sb.auth.signOut();
-    alertBox.textContent = "هذا الحساب لا يملك صلاحية التيسير بعد — إن قدّمت طلبًا فهو قيد المراجعة";
+    alertBox.textContent = "هذا الحساب لا يملك صلاحية التنظيم بعد — إن قدّمت طلبًا فهو قيد المراجعة";
     alertBox.className = "alert error";
     return;
   }
@@ -220,7 +220,7 @@ async function handleLogout(){
 })();
 
 /* ---------------- قائمة المشاركين عبر دالة آمنة ----------------
-   سياسة teams لا تسمح للميسّر بقراءة الفرق مباشرة، فالاستعلام المربوط
+   سياسة teams لا تسمح للمنظّم بقراءة الفرق مباشرة، فالاستعلام المربوط
    بالفرق كان يعود فارغًا. الدالة facilitator_roster تعيد الاسم والفريق
    والمسار فقط (بلا جوال ولا بريد). نعيد تشكيلها بالبنية القديمة. */
 async function fetchRoster(trackId){
@@ -233,7 +233,7 @@ async function fetchRoster(trackId){
   }));
 }
 
-/* ---------------- صلاحيات الميسّر ----------------
+/* ---------------- صلاحيات المنظّم ----------------
    teams = حضور الفرق · mentors = تحضير المرشدين · judges = تحضير المحكّمين
    تُفرض في قاعدة البيانات؛ هنا نُظهر التبويبات المسموحة فقط. */
 let FAC_PERMS = [];
@@ -309,7 +309,7 @@ async function toggleJudgePresence(userId, present){
 
 /* ---------------- حضور المرشدين ---------------- */
 // مواعيد المرشد لا تظهر للفرق حتى يُسجَّل حاضرًا، فلا يُحجز
-// موعد مع غائب. الميسّر يضبطها من هنا بضغطة واحدة.
+// موعد مع غائب. المنظّم يضبطها من هنا بضغطة واحدة.
 
 async function renderMentorPresence(){
   currentView = "mentors";
@@ -317,7 +317,7 @@ async function renderMentorPresence(){
   box.innerHTML = mainModeSwitcherHtml() +
     `<div class="card"><p class="hint">جارٍ التحميل...</p></div>`;
 
-  // الميسّر لا يرى أدوار غيره في user_roles، فالقائمة تأتي من دالة آمنة
+  // المنظّم لا يرى أدوار غيره في user_roles، فالقائمة تأتي من دالة آمنة
   const { data, error } = await sb.rpc("facilitator_mentors");
 
   if(error){

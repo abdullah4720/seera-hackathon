@@ -336,7 +336,7 @@
         <a data-page="users"><i data-lucide="shield-check"></i> المستخدمون والأدوار</a>
         <a data-page="mentorApps"><i data-lucide="user-plus"></i> طلبات الانضمام كمرشد <span id="badge-mentorApps" class="nav-badge" style="display:none"></span></a>
         <a data-page="judgeApps"><i data-lucide="user-plus"></i> طلبات الانضمام كمحكّم <span id="badge-judgeApps" class="nav-badge" style="display:none"></span></a>
-        <a data-page="facilitatorApps"><i data-lucide="user-plus"></i> طلبات الانضمام كميسّر <span id="badge-facilitatorApps" class="nav-badge" style="display:none"></span></a>
+        <a data-page="facilitatorApps"><i data-lucide="user-plus"></i> طلبات الانضمام كمنظّم <span id="badge-facilitatorApps" class="nav-badge" style="display:none"></span></a>
         <a data-page="systemCheck"><i data-lucide="stethoscope"></i> فحص النظام</a>
         <a data-page="finalReport"><i data-lucide="file-text"></i> التقرير النهائي</a>
         <a data-page="activity"><i data-lucide="history"></i> سجل النشاط</a>
@@ -1057,7 +1057,7 @@ async function renderAttentionZone(scheduleMap){
   const items = [];
   if((mentorApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كمرشد بانتظار المراجعة", count:mentorApps.count, page:"mentorApps" });
   if((judgeApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كمحكّم بانتظار المراجعة", count:judgeApps.count, page:"judgeApps" });
-  if((facApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كميسّر بانتظار المراجعة", count:facApps.count, page:"facilitatorApps" });
+  if((facApps.count||0) > 0) items.push({ color:"var(--danger)", text:"طلبات انضمام كمنظّم بانتظار المراجعة", count:facApps.count, page:"facilitatorApps" });
   if(belowMinMentors > 0) items.push({ color:"var(--gold)", text:`مرشدون لم يضيفوا ${MIN_MENTOR_SLOTS} مواعيد على الأقل`, count:belowMinMentors, page:"mentorship" });
   if(missingCount > 0) items.push({ color:"var(--navy)", text:"فرق مؤكدة لم تقدّم مشاريعها بعد", count:missingCount, page:"projects" });
 
@@ -3267,9 +3267,9 @@ async function renderMentorshipSettings(){
     </div>
 
     <div class="card" style="margin-top:14px">
-      <h3 style="margin:0 0 6px">الميسّرون: الصلاحيات والمسارات</h3>
+      <h3 style="margin:0 0 6px">المنظّمون: الصلاحيات والمسارات</h3>
       <p class="hint" style="margin:0 0 14px">
-        الصلاحيات: حضور الفرق، تحضير المرشدين، تحضير المحكّمين — يرى الميسّر تبويبات صلاحياته فقط. المسار المسنَد يظهر له «مساري» في عرض الفرق.
+        الصلاحيات: حضور الفرق، تحضير المرشدين، تحضير المحكّمين — يرى المنظّم تبويبات صلاحياته فقط. المسار المسنَد يظهر له «مساري» في عرض الفرق.
       </p>
       <div id="fac-tracks"><p class="hint">جارٍ التحميل...</p></div>
     </div>
@@ -3287,8 +3287,8 @@ async function renderMentorshipSettings(){
   loadFacilitatorTracks();
 }
 
-/* ---------------- مسارات الميسّرين ---------------- */
-// عدة ميسّرين، كلٌّ لمسار: الميسّر يرى فرق مساره فقط بدل قائمة
+/* ---------------- مسارات المنظّمين ---------------- */
+// عدة منظّمين، كلٌّ لمسار: المنظّم يرى فرق مساره فقط بدل قائمة
 // كل الفرق.
 
 async function loadFacilitatorTracks(){
@@ -3311,13 +3311,13 @@ async function loadFacilitatorTracks(){
 
   const list = asg.data || [];
   if(!list.length){
-    box.innerHTML = `<div class="empty-state">لا ميسّرون معتمدون بعد</div>`;
+    box.innerHTML = `<div class="empty-state">لا يوجد منظّمون معتمدون بعد</div>`;
     return;
   }
 
   box.innerHTML = `
     <table class="table"><thead><tr>
-      <th>الميسّر</th><th>البريد</th><th>الصلاحيات</th><th>المسارات</th><th></th>
+      <th>المنظّم</th><th>البريد</th><th>الصلاحيات</th><th>المسارات</th><th></th>
     </tr></thead><tbody>
     ${list.map(f => `<tr>
       <td><strong>${esc(f.الميسّر)}</strong></td>
@@ -3509,7 +3509,7 @@ function printCommittees(){
 
 function openFacPermsModal(userId, name){
   openModal(`<h3>صلاحيات ${esc(name)}</h3>
-    <p class="hint" style="margin:0 0 14px">تُطبَّق فورًا وتُفرض في قاعدة البيانات — يرى الميسّر تبويبات صلاحياته فقط</p>
+    <p class="hint" style="margin:0 0 14px">تُطبَّق فورًا وتُفرض في قاعدة البيانات — يرى المنظّم تبويبات صلاحياته فقط</p>
     <div class="field">${facPermsCheckboxes(window._facPerms?.[userId] || [])}</div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-primary" onclick='saveFacPerms(${jsArg(userId)})'>حفظ</button>
@@ -3520,9 +3520,9 @@ async function saveFacPerms(userId){
   const perms = [...document.querySelectorAll(".fac-perm-cb:checked")].map(cb => cb.value);
   const { data, error } = await sb.rpc("set_facilitator_permissions", { p_user_id: userId, p_perms: perms });
   if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
-  logActivity("تعديل صلاحيات ميسّر", "facilitator_permissions", userId, { perms });
+  logActivity("تعديل صلاحيات منظّم", "facilitator_permissions", userId, { perms });
   closeModal();
-  showToast(perms.length ? "تم حفظ الصلاحيات" : "أُزيلت كل صلاحيات الميسّر");
+  showToast(perms.length ? "تم حفظ الصلاحيات" : "أُزيلت كل صلاحيات المنظّم");
   loadFacilitatorTracks();
 }
 
@@ -3566,7 +3566,7 @@ async function saveFacTracks(userId){
     }
   }
 
-  logActivity("تحديد مسارات ميسّر", "facilitator_tracks", userId, { tracks: chosen.length });
+  logActivity("تحديد مسارات منظّم", "facilitator_tracks", userId, { tracks: chosen.length });
   closeModal();
   showToast(chosen.length ? `أُسنِد ${chosen.length} مسارًا` : "يرى كل المسارات الآن");
   loadFacilitatorTracks();
@@ -3636,7 +3636,7 @@ async function loadMentorshipHealth(){
     </div>
     ${warn ? `<div class="alert alert-error" style="margin-top:12px">
       فترة الإرشاد جارية ولا مرشد مسجَّل حاضرًا — لن تظهر أي مواعيد للفرق.
-      سجّل الحضور من لوحة الميسّرين.</div>` : ""}`;
+      سجّل الحضور من لوحة المنظّمين.</div>` : ""}`;
 }
 
 async function saveBookingRules(){
@@ -3921,7 +3921,7 @@ function drawGrid(){
                 <div style="font-size:12px;line-height:1.5">${esc(s.title)}</div>
                 <div style="margin-top:4px;display:flex;gap:5px;justify-content:center;align-items:center;flex-wrap:wrap">
                   <span style="font-size:9.5px;padding:1px 7px;border-radius:20px;background:${m.color}1f;color:${m.color};font-weight:700">${m.label}</span>
-                  <span title="${s.attendance_open ? "التحضير مفتوح للميسّر" : "التحضير مغلق"}"
+                  <span title="${s.attendance_open ? "التحضير مفتوح للمنظّم" : "التحضير مغلق"}"
                         style="cursor:pointer;font-size:11px" onclick="toggleSessionOpen('${s.id}', ${!s.attendance_open})">
                     ${s.attendance_open ? "🔓" : "🔒"}
                   </span>
@@ -4216,7 +4216,7 @@ async function togglePrepActive(sessionId, activate){
   const { data, error } = await sb.rpc(rpcName, { p_session_id: sessionId });
   if(error || !data.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
   logActivity(activate ? "تفعيل جلسة تحضير" : "إلغاء تفعيل جلسة", "prep_session", sessionId);
-  showToast(activate ? "تم تفعيل الجلسة — الميسّر يقدر يسجّل حضورها الآن" : "تم إلغاء التفعيل");
+  showToast(activate ? "تم تفعيل الجلسة — المنظّم يقدر يسجّل حضورها الآن" : "تم إلغاء التفعيل");
   renderPrep();
 }
 async function openPrepModal(p=null){
@@ -7385,8 +7385,8 @@ async function rejectMentorApp(id){
 }
 
 /* ============================================================
-   طلبات الانضمام كميسّر
-   الاعتماد يمنح دور «ميسّر» فقط (تسجيل الحضور، حضور المرشدين،
+   طلبات الانضمام كمنظّم
+   الاعتماد يمنح دور «منظّم» فقط (تسجيل الحضور، حضور المرشدين،
    قائمة المشاركين بالاسم والفريق والمسار) ويربط المسارات المختارة
    ============================================================ */
 const FAC_PERM_LABELS = { teams: "حضور الفرق", mentors: "تحضير المرشدين", judges: "تحضير المحكّمين" };
@@ -7402,7 +7402,7 @@ let facAppsCache = [];
 let facAppsTracks = [];
 async function renderFacilitatorApplications(){
   const main = document.getElementById("main-content");
-  main.innerHTML = `<div class="page-header"><div><h1>طلبات الانضمام كميسّر</h1><p>الاعتماد يمنح صلاحيات الميسّر فقط: تسجيل الحضور ومتابعة الفرق بمساراته — رابط التقديم: <code>facilitator-apply.html</code></p></div></div>
+  main.innerHTML = `<div class="page-header"><div><h1>طلبات الانضمام كمنظّم</h1><p>الاعتماد يمنح صلاحيات المنظّم فقط: تسجيل الحضور ومتابعة الفرق بمساراته — رابط التقديم: <code>facilitator-apply.html</code></p></div></div>
     <div class="card"><div id="fac-apps-table">${skeletonRows(4)}</div></div>`;
 
   const [{ data, error }, { data: tracks }] = await Promise.all([
@@ -7415,7 +7415,7 @@ async function renderFacilitatorApplications(){
   const box = document.getElementById("fac-apps-table");
   if(error){ box.innerHTML = `<div class="empty-state">خطأ: ${esc(error.message)}</div>`; return; }
   facAppsCache = data || [];
-  if(!facAppsCache.length){ box.innerHTML = emptyIllustration("user-plus", "لا توجد طلبات بعد", "شارك رابط facilitator-apply.html مع المتطوعين الراغبين بالتيسير"); return; }
+  if(!facAppsCache.length){ box.innerHTML = emptyIllustration("user-plus", "لا توجد طلبات بعد", "شارك رابط facilitator-apply.html مع المتطوعين الراغبين بالتنظيم"); return; }
 
   const statusBadge = {
     pending: '<span class="badge badge-gray">قيد المراجعة</span>',
@@ -7443,8 +7443,8 @@ async function renderFacilitatorApplications(){
 function openApproveFacilitator(id){
   const a = facAppsCache.find(x => x.id === id);
   if(!a) return;
-  openModal(`<h2>اعتماد ${esc(a.profiles?.full_name||"")} ميسّرًا</h2>
-    <p class="hint" style="margin:0 0 12px">يُمنح دور «ميسّر» فقط بالصلاحيات المختارة، ويصله إشعار داخل المنصة.</p>
+  openModal(`<h2>اعتماد ${esc(a.profiles?.full_name||"")} منظّمًا</h2>
+    <p class="hint" style="margin:0 0 12px">يُمنح دور «منظّم» فقط بالصلاحيات المختارة، ويصله إشعار داخل المنصة.</p>
     <div class="field"><label style="font-weight:700">الصلاحيات</label>${facPermsCheckboxes(["teams"])}</div>
     <div class="field"><label style="font-weight:700">المسارات (اختياري)</label>
       ${facAppsTracks.map(t => `<label style="display:flex;align-items:center;justify-content:flex-start;gap:8px;font-size:13.5px;margin-bottom:8px">
@@ -7461,9 +7461,9 @@ async function approveFacilitatorApp(id){
   if(!perms.length){ showToast("اختر صلاحية واحدة على الأقل", true); return; }
   const { data, error } = await sb.rpc("approve_facilitator_application", { p_application_id: id, p_track_ids: trackIds, p_permissions: perms });
   if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
-  logActivity("اعتماد طلب ميسّر", "facilitator_application", id, { tracks: trackIds.length, perms });
+  logActivity("اعتماد طلب منظّم", "facilitator_application", id, { tracks: trackIds.length, perms });
   closeModal();
-  showToast("تم الاعتماد — صار عنده دور ميسّر الآن");
+  showToast("تم الاعتماد — صار عنده دور منظّم الآن");
   renderFacilitatorApplications();
   refreshNavBadges();
 }
@@ -7473,7 +7473,7 @@ async function rejectFacilitatorApp(id){
   if(!reason.trim()){ showToast("السبب مطلوب", true); return; }
   const { data, error } = await sb.rpc("reject_facilitator_application", { p_application_id: id, p_reason: reason.trim() });
   if(error || !data?.success){ showToast("خطأ: " + (data?.error || error?.message), true); return; }
-  logActivity("رفض طلب ميسّر", "facilitator_application", id, { reason: reason.trim() });
+  logActivity("رفض طلب منظّم", "facilitator_application", id, { reason: reason.trim() });
   showToast("تم رفض الطلب");
   renderFacilitatorApplications();
   refreshNavBadges();

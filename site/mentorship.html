@@ -218,13 +218,13 @@ async function render(){
   ]);
 
   if(sum.error){
-    // اللوحة تتطلب تسجيل الدخول (حساب الإدارة أو الميسّر أو أي حساب في المنصة)
+    // اللوحة تتطلب تسجيل الدخول (حساب الإدارة أو المنظّم أو أي حساب في المنصة)
     const { data: { session } } = await sb.auth.getSession();
     box.innerHTML = session
       ? `<p style="text-align:center;color:var(--muted);padding:50px 0">تعذّر تحميل البيانات</p>`
       : `<p style="text-align:center;color:var(--muted);padding:50px 0">يُرجى تسجيل الدخول أولًا من
            <a href="./admin.html" style="color:var(--gold)">لوحة التحكم</a> أو
-           <a href="./facilitator.html" style="color:var(--gold)">لوحة الميسّر</a> على هذا الجهاز، ثم تحديث الصفحة.</p>`;
+           <a href="./facilitator.html" style="color:var(--gold)">لوحة المنظّم</a> على هذا الجهاز، ثم تحديث الصفحة.</p>`;
     return;
   }
 

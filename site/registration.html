@@ -1583,6 +1583,19 @@ async function renderChatTab(membership){
   await loadTeamMessages(teamId);
   subscribeTeamChat(teamId);
 }
+/* بيانات المرشد العامة فقط (بلا جوال ولا بريد) عبر mentor_cards —
+   profiles لم تعد تُظهر صفوف المرشدين للمشاركين (sql/87).
+   تُلحق بكل موعد في الحقل profiles كما كانت تصل من الربط سابقًا. */
+async function attachMentorCards(items, getSlot){
+  const ids = [...new Set(items.map(x => getSlot(x)?.mentor_user_id).filter(Boolean))];
+  if(!ids.length) return items;
+  const { data } = await sb.rpc("mentor_cards", { p_ids: ids });
+  const byId = {};
+  (data || []).forEach(m => { byId[m.id] = m; });
+  items.forEach(x => { const sl = getSlot(x); if(sl) sl.profiles = byId[sl.mentor_user_id] || null; });
+  return items;
+}
+
 async function loadTeamMessages(teamId){
   const { data } = await sb.from("team_messages")
     .select("message, created_at, profiles(full_name)")
@@ -1805,12 +1818,12 @@ async function renderMentorshipTab(membership){
 
   // كل مواعيد الفريق النشطة (غير الملغاة)
   const { data: myBookings } = await sb.from("mentor_bookings")
-    .select("id, status, requested_topic, mentor_slots(id, start_time, end_time, is_online, location, mentor_user_id, profiles(full_name))")
+    .select("id, status, requested_topic, mentor_slots(id, start_time, end_time, is_online, location, mentor_user_id)")
     .eq("team_id", team.id)
     .neq("status", "cancelled")
     .order("created_at", {ascending:false});
 
-  cachedTeamBookings = myBookings || [];
+  cachedTeamBookings = await attachMentorCards(myBookings || [], b => b.mentor_slots);
 
   // التقييمات الموجودة مسبقًا (عشان ما نكرر عرض نموذج التقييم)
   const bookingIds = cachedTeamBookings.map(b => b.id);
@@ -1898,11 +1911,12 @@ async function renderMentorshipTab(membership){
   // mentor_present في الاستعلام: مواعيد المرشد لا تظهر حتى يسجّل
   // المنظّم حضوره، فلا يُحجز موعد مع غائب.
   const { data: rawSlots, error } = await sb.from("mentor_slots")
-    .select("id, start_time, end_time, is_online, location, is_booked, track_id, mentor_user_id, profiles(full_name, specialization, current_position, bio, is_active, mentor_present, mentor_present_at)")
+    .select("id, start_time, end_time, is_online, location, is_booked, track_id, mentor_user_id")
     .eq("is_booked", false)
     .or(`track_id.is.null,track_id.eq.${team.track_id}`)
     .gte("start_time", new Date().toISOString())
     .order("start_time");
+  if(rawSlots) await attachMentorCards(rawSlots, sl => sl);
 
   if(error){
     body.innerHTML = bookingHtml + `<div class="card"><p class="hint">تعذّر تحميل المواعيد المتاحة</p></div>`;
